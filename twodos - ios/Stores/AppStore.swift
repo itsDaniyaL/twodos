@@ -28,7 +28,13 @@ final class AppStore {
         case signedIn
     }
 
-    private(set) var phase: Phase = .launching
+    private(set) var phase: Phase = .launching {
+        didSet {
+            // Signing in is the moment a held deep link becomes actionable.
+            guard phase == .signedIn, oldValue != .signedIn else { return }
+            resumeDeferredDeepLink()
+        }
+    }
     private(set) var user: CurrentUser?
     /// Set when the session ended on its own rather than by the user's choice,
     /// so the sign-in screen can explain why they are looking at it.
@@ -59,8 +65,119 @@ final class AppStore {
 
     // MARK: - Navigation intents
 
-    /// Set when a notification tap or a socket event should open a list.
+    /// Set when a notification tap, a widget tap, or a socket event should open
+    /// a list.
     var pendingListToOpen: String?
+
+    /// A link that arrived before the session was ready to act on it.
+    ///
+    /// This is the *normal* path, not an edge case: tapping a widget when the
+    /// app is not running delivers the URL while `phase` is still `.launching`,
+    /// so acting immediately would drop exactly the taps the user made most
+    /// deliberately.
+    private var deferredDeepLink: DeepLink?
+
+    /// Acts on a `twodos://` URL, or holds it until it can.
+    ///
+    /// A link naming a list that no longer exists is not worth an error — the
+    /// widget may be showing a snapshot older than the session. It lands the
+    /// user on the lists screen, which is where an unresolvable link should
+    /// leave anyone.
+    func handle(deepLink: DeepLink?) {
+        switch deepLink {
+        case .list(let id):
+            guard phase == .signedIn else {
+                deferredDeepLink = deepLink
+                return
+            }
+            pendingListToOpen = id
+        case .lists, nil:
+            break
+        }
+    }
+
+    private func resumeDeferredDeepLink() {
+        guard let link = deferredDeepLink else { return }
+        deferredDeepLink = nil
+        handle(deepLink: link)
+    }
+
+    // MARK: - Undo
+
+    /// A deletion the user can still take back.
+    struct UndoPrompt: Identifiable, Equatable {
+        let id = UUID()
+        var title: String
+        var message: String?
+    }
+
+    /// How long a deletion waits before it becomes real.
+    ///
+    /// Long enough to notice and react, short enough that the app does not feel
+    /// like it is holding something back. Deleting is the one action here with
+    /// no server-side undo — there is no restore endpoint — so the window is
+    /// bought by *deferring the request*, not by reversing it afterwards.
+    static let undoWindow: Duration = .seconds(5)
+
+    private(set) var undoPrompt: UndoPrompt?
+
+    @ObservationIgnored private var undoRestore: (() -> Void)?
+    @ObservationIgnored private var undoCommit: (() async -> Void)?
+    @ObservationIgnored private var undoTimer: Task<Void, Never>?
+
+    /// Removes something locally now and tells the server about it later.
+    ///
+    /// Only one deletion is ever pending: a second one commits the first
+    /// immediately, because two undo prompts cannot share one banner and a
+    /// silently-replaced prompt would be worse than no prompt at all.
+    private func offerUndo(
+        title: String,
+        message: String? = nil,
+        restore: @escaping () -> Void,
+        commit: @escaping () async -> Void
+    ) async {
+        await commitPendingDeletion()
+
+        undoRestore = restore
+        undoCommit = commit
+        undoPrompt = UndoPrompt(title: title, message: message)
+
+        undoTimer = Task { [weak self] in
+            try? await Task.sleep(for: Self.undoWindow)
+            guard !Task.isCancelled else { return }
+            await self?.commitPendingDeletion()
+        }
+    }
+
+    /// Puts back whatever was last deleted. The server was never told.
+    func undoDeletion() {
+        undoTimer?.cancel()
+        undoTimer = nil
+        let restore = undoRestore
+        clearUndo()
+        restore?()
+        Haptics.success()
+    }
+
+    /// Makes the pending deletion real now rather than at the end of the window.
+    ///
+    /// Called when the window expires, when a second deletion arrives, when the
+    /// app leaves the foreground, and on sign-out. The backgrounding case is the
+    /// important one: a suspended app's timer may never fire, and a deletion the
+    /// user watched happen must not quietly come back.
+    func commitPendingDeletion() async {
+        undoTimer?.cancel()
+        undoTimer = nil
+        let commit = undoCommit
+        clearUndo()
+        await commit?()
+    }
+
+    private func clearUndo() {
+        undoPrompt = nil
+        undoRestore = nil
+        undoCommit = nil
+    }
 
     // MARK: - Transient UI
 
@@ -98,29 +215,64 @@ final class AppStore {
         notifications.onCompleteTodo = { [weak self] listId, todoId in
             Task { await self?.setTodo(listId: listId, todoId: todoId, done: true) }
         }
-        location.onCrossing = { [weak self] listId, trigger in
-            Task { await self?.handleGeofenceCrossing(listId: listId, trigger: trigger) }
+        location.onCrossing = { [weak self] crossing in
+            Task { await self?.handleGeofenceCrossing(crossing) }
+        }
+        location.onNeedsResync = { [weak self] in
+            guard let self else { return }
+            Task { await self.location.syncGeofences(from: self.lists, currentUserId: self.currentUserId) }
+        }
+
+        // Turning location reminders off should stop the *watching*, not just
+        // discard the results. Left registered, every fence went on waking the
+        // app from cold for a notification the user had already said they did
+        // not want.
+        NotificationSettingsStore.shared.onLocationRemindersChanged = { [weak self] enabled in
+            guard let self else { return }
+            Task {
+                if enabled {
+                    await self.location.syncGeofences(from: self.lists, currentUserId: self.currentUserId)
+                } else {
+                    await self.location.removeAllGeofences()
+                }
+            }
         }
 
         // The watch can ask for a session directly when it launches cold.
         watch.currentPayload = { [weak self] in self?.watchPayload() ?? [:] }
+        // …and tells us when it has changed something on the server, which the
+        // API does not push back to the user's own other devices.
+        watch.onWatchMutation = { [weak self] in
+            await self?.refreshLists()
+        }
         watch.activate()
     }
 
-    // MARK: - Watch
+    // MARK: - Watch and widgets
 
-    /// Hands the watch the current session and a compact snapshot of the lists.
+    /// Pushes the current state out to everything that draws it but does not own
+    /// it: the watch, and the widgets on both devices.
     ///
-    /// Called after anything that changes either. The service itself skips
-    /// pushes when nothing has actually changed, so calling it liberally is
-    /// cheap.
-    private func syncWatch() {
+    /// Called after anything that changes the lists or the session. Both
+    /// destinations compare before they act — the connectivity service skips a
+    /// push when the payload is unchanged, and ``WidgetPublisher`` skips a
+    /// reload when the snapshot is — so calling this liberally is cheap, and
+    /// every mutation path already calls it.
+    private func syncExternalSurfaces() {
         watch.push(
             token: TokenStore.shared.accessToken,
             expiresAt: TokenStore.shared.accessExpiresAt,
             lists: lists,
             currentUserId: currentUserId,
             partnerNames: partnerNames
+        )
+        WidgetPublisher.publish(
+            .make(
+                from: lists,
+                currentUserId: currentUserId,
+                isSignedIn: phase == .signedIn,
+                partnerNames: partnerNames
+            )
         )
     }
 
@@ -153,6 +305,12 @@ final class AppStore {
 
     func start() async {
         await notifications.refreshAuthorization()
+
+        // Before anything that touches the network. iOS launches the app from
+        // cold *for* a geofence crossing, and the reminder is written from data
+        // already on disk — so on that path the app can do its whole job and go
+        // back to sleep without ever waking the radio.
+        await location.resumeMonitoring()
 
         guard TokenStore.shared.hasSession else {
             phase = .signedOut
@@ -228,7 +386,7 @@ final class AppStore {
 
         sessionExpired = false
         phase = .signedIn
-        syncWatch()
+        syncExternalSurfaces()
         await connectSocket()
         await refreshAll()
     }
@@ -239,6 +397,8 @@ final class AppStore {
     }
 
     private func signOutLocally() async {
+        // Before the session goes: a held deletion still needs a valid token.
+        await commitPendingDeletion()
         await SocketClient.shared.disconnect()
         await location.removeAllGeofences()
         notifications.cancelAll()
@@ -256,7 +416,7 @@ final class AppStore {
         hasLoadedLists = false
         isSocketConnected = false
         phase = .signedOut
-        syncWatch()
+        syncExternalSurfaces()
     }
 
     func acknowledgeSessionExpiry() { sessionExpired = false }
@@ -279,9 +439,9 @@ final class AppStore {
             let fetched = try await api.lists()
             lists = fetched
             hasLoadedLists = true
-            await location.syncGeofences(from: fetched)
+            await location.syncGeofences(from: fetched, currentUserId: currentUserId)
             await reconcileScheduledReminders(with: fetched)
-            syncWatch()
+            syncExternalSurfaces()
         } catch {
             report(error, whileDoing: "loading your lists")
         }
@@ -298,7 +458,15 @@ final class AppStore {
                 lists.append(fetched)
             }
             await syncReminders(for: fetched)
-            syncWatch()
+            // Keeps the fence set honest between full refreshes: ticking off the
+            // last item should stop the system watching for a place there is no
+            // longer anything to do at. Cheap to call — a sync that changes
+            // nothing returns before it touches CoreLocation. Skipped until the
+            // first full load, when `lists` is not yet the whole picture.
+            if hasLoadedLists {
+                await location.syncGeofences(from: lists, currentUserId: currentUserId)
+            }
+            syncExternalSurfaces()
         } catch APIError.server {
             // The list is gone (deleted by the partner). Drop it locally.
             lists.removeAll { $0.id == id }
@@ -310,6 +478,13 @@ final class AppStore {
     func refreshPartners() async {
         do {
             partners = try await api.partners()
+            // Names are resolved on this side before being sent, so the watch
+            // and the widgets show "Sam" rather than a partner id. Both run
+            // concurrently with `refreshLists`, which means the lists usually
+            // land first — without republishing here, a shared task would go on
+            // showing an anonymous "shared" glyph until something else happened
+            // to change the lists.
+            syncExternalSurfaces()
         } catch {
             logger.debug("refreshPartners failed: \(error.localizedDescription)")
         }
@@ -514,7 +689,7 @@ final class AppStore {
         do {
             _ = try await api.archiveList(id: id, archived: archived)
             if archived {
-                await location.removeGeofence(listId: id)
+                location.invalidatePlan()
                 cancelReminders(for: previous)
             } else {
                 await syncReminders(for: lists[index])
@@ -526,19 +701,44 @@ final class AppStore {
         }
     }
 
+    /// Deletes a list, with a window to take it back.
+    ///
+    /// The API has no restore, so undo is bought by holding the request rather
+    /// than reversing it. The list leaves the screen immediately — the user
+    /// should never wait to see the result of a delete — and the server hears
+    /// about it once the window closes.
+    ///
+    /// This matters more now that a full swipe deletes a list outright, with no
+    /// confirmation step in between.
     func deleteList(id: String) async {
         guard let index = lists.firstIndex(where: { $0.id == id }) else { return }
         let removed = lists.remove(at: index)
+        syncExternalSurfaces()
 
-        do {
-            _ = try await api.deleteList(id: id)
-            cancelReminders(for: removed)
-            await location.removeGeofence(listId: id)
-            await refreshPartners()
-        } catch {
-            lists.insert(removed, at: min(index, lists.count))
-            report(error, whileDoing: "deleting the list")
-        }
+        await offerUndo(
+            title: "Deleted “\(removed.label)”",
+            message: removed.totalCount > 0
+                ? "\(removed.totalCount) item\(removed.totalCount == 1 ? "" : "s") went with it."
+                : nil,
+            restore: { [weak self] in
+                guard let self else { return }
+                self.lists.insert(removed, at: min(index, self.lists.count))
+                self.syncExternalSurfaces()
+            },
+            commit: { [weak self] in
+                guard let self else { return }
+                do {
+                    _ = try await self.api.deleteList(id: id)
+                    self.cancelReminders(for: removed)
+                    self.location.invalidatePlan()
+                    await self.refreshPartners()
+                } catch {
+                    self.lists.insert(removed, at: min(index, self.lists.count))
+                    self.syncExternalSurfaces()
+                    self.report(error, whileDoing: "deleting the list")
+                }
+            }
+        )
     }
 
     func respondToInvite(listId: String, accept: Bool) async {
@@ -640,13 +840,36 @@ final class AppStore {
 
         let removed = lists[listIndex].todos.remove(at: todoIndex)
         notifications.cancel(id: NotificationService.todoDeadlineID(listId: listId, todoId: todoId))
+        syncExternalSurfaces()
 
-        do {
-            _ = try await api.deleteTodo(listId: listId, todoId: todoId)
-        } catch {
-            lists[listIndex].todos.insert(removed, at: min(todoIndex, lists[listIndex].todos.count))
-            report(error, whileDoing: "deleting the item")
-        }
+        // Same deferral as `deleteList`. An item is a smaller loss, but a full
+        // swipe deletes one without confirmation and the API cannot put it back.
+        await offerUndo(
+            title: "Deleted “\(removed.title)”",
+            restore: { [weak self] in
+                guard let self,
+                      let index = self.lists.firstIndex(where: { $0.id == listId })
+                else { return }
+                let items = self.lists[index].todos
+                self.lists[index].todos.insert(removed, at: min(todoIndex, items.count))
+                self.syncExternalSurfaces()
+            },
+            commit: { [weak self] in
+                guard let self else { return }
+                do {
+                    _ = try await self.api.deleteTodo(listId: listId, todoId: todoId)
+                    // A pinned item losing its pin can empty a whole place.
+                    if removed.hasLocation { self.location.invalidatePlan() }
+                } catch {
+                    if let index = self.lists.firstIndex(where: { $0.id == listId }) {
+                        let items = self.lists[index].todos
+                        self.lists[index].todos.insert(removed, at: min(todoIndex, items.count))
+                    }
+                    self.syncExternalSurfaces()
+                    self.report(error, whileDoing: "deleting the item")
+                }
+            }
+        )
     }
 
     /// Persists a drag-reorder. The local array is already in its new order;
@@ -702,13 +925,13 @@ final class AppStore {
             radius: radius, trigger: trigger
         )
         await refreshList(id: listId)
-        await location.syncGeofences(from: lists)
+        await location.syncGeofences(from: lists, currentUserId: currentUserId)
     }
 
     func clearListLocation(listId: String) async {
         do {
             _ = try await api.clearListLocation(listId: listId)
-            await location.removeGeofence(listId: listId)
+            location.invalidatePlan()
             await refreshList(id: listId)
         } catch {
             report(error, whileDoing: "removing the location")
@@ -717,26 +940,97 @@ final class AppStore {
 
     /// Fired by `CLMonitor` on a real boundary crossing, including from a
     /// background relaunch.
-    private func handleGeofenceCrossing(listId: String, trigger: GeofenceTrigger) async {
-        guard let list = list(id: listId), list.trigger == trigger else { return }
+    ///
+    /// The usual case here is a *cold* relaunch, where `lists` is empty because
+    /// nothing has been fetched yet. That is why the fence carries its own
+    /// snapshot: the notification is written from disk, and the network is only
+    /// involved when there is genuinely a partner on the other end who has to be
+    /// told. A personal reminder — the common one — now costs one wake-up and no
+    /// radio at all, where it used to cost a session refresh and a full list
+    /// fetch before it could name the place the user was standing in.
+    /// Pins a single item to a place.
+    ///
+    /// The API has always supported this; nothing has ever called it. Because
+    /// fences are keyed by place, pinning a fifth item to a shop the user
+    /// already has reminders at adds a target to an existing region rather than
+    /// a region — the battery cost of the fifth item is zero.
+    func setItemLocation(
+        listId: String,
+        todoId: String,
+        name: String?,
+        latitude: Double,
+        longitude: Double,
+        radius: Double,
+        trigger: GeofenceTrigger
+    ) async throws(APIError) {
+        _ = try await api.setItemLocation(
+            listId: listId, todoId: todoId, name: name,
+            latitude: latitude, longitude: longitude,
+            radius: radius, trigger: trigger
+        )
+        await refreshList(id: listId)
+        location.invalidatePlan()
+        await location.syncGeofences(from: lists, currentUserId: currentUserId)
+    }
+
+    func clearItemLocation(listId: String, todoId: String) async {
+        do {
+            _ = try await api.clearItemLocation(listId: listId, todoId: todoId)
+            location.invalidatePlan()
+            await refreshList(id: listId)
+        } catch {
+            report(error, whileDoing: "removing the reminder")
+        }
+    }
+
+    /// One notification per *place*, however many reminders are waiting there.
+    ///
+    /// Walking into the supermarket with four pinned items is one event and one
+    /// buzz — "Tesco Metro · 4 things to pick up" — not four notifications
+    /// thirty seconds apart. That is the whole reason fences are keyed by place.
+    private func handleGeofenceCrossing(_ crossing: GeofenceCrossing) async {
         guard NotificationSettingsStore.shared.locationReminders else { return }
 
-        let place = list.locationName ?? "your saved place"
-        let outstanding = list.todos.count { !$0.done }
+        // On a cold launch the cached status is still `.notDetermined`, and
+        // `showNow` would drop the notification on the floor.
+        if !notifications.isAuthorized { await notifications.refreshAuthorization() }
+
+        let place = crossing.placeName ?? "your saved place"
+        let arriving = crossing.trigger == .arrive
 
         await notifications.showNow(
-            id: NotificationService.geofenceID(listId: listId),
-            title: trigger == .arrive ? "You're at \(place)" : "Leaving \(place)",
-            body: outstanding > 0
-                ? "\(list.label) — \(outstanding) item\(outstanding == 1 ? "" : "s") left"
-                : list.label,
+            id: NotificationService.geofenceID(listId: crossing.placeId),
+            title: arriving ? "You're at \(place)" : "Leaving \(place)",
+            body: Self.crossingBody(crossing),
             category: .geofence,
-            listId: listId,
+            listId: crossing.primaryListId,
             sound: NotificationSettingsStore.shared.playSound
         )
 
-        // Tell the server so the partner is notified too.
-        _ = try? await api.fireLocationTrigger(listId: listId, event: trigger)
+        // Tell the server so partners are notified too — once per shared list,
+        // and not at all when nothing here is shared. A solo reminder is the
+        // common case and it stays entirely offline.
+        guard crossing.notifiesPartner else { return }
+        for listId in Set(crossing.targets.filter(\.notifiesPartner).map(\.listId)) {
+            _ = try? await api.fireLocationTrigger(listId: listId, event: crossing.trigger)
+        }
+    }
+
+    /// Names what is waiting when there is one thing, and counts it when there
+    /// are several — a body listing four titles is unreadable on a banner.
+    nonisolated static func crossingBody(_ crossing: GeofenceCrossing) -> String {
+        let targets = crossing.targets
+        if targets.count == 1 {
+            let only = targets[0]
+            // A per-item reminder says which list it came from; a list-level one
+            // would otherwise repeat its own name twice.
+            return only.todoId == nil ? only.label : "\(only.label) · \(only.listLabel)"
+        }
+        let lists = Set(targets.map(\.listId))
+        let things = "\(targets.count) things to do"
+        return lists.count == 1
+            ? "\(things) · \(targets[0].listLabel)"
+            : "\(things) across \(lists.count) lists"
     }
 
     // MARK: - Alarms

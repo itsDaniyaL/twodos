@@ -22,6 +22,11 @@ struct ListCard: View {
     private var isPersonal: Bool { list.isEffectivelyPersonal(currentUserId: currentUserId) }
 
     var body: some View {
+        // No swipe here on purpose. A list card is a large translucent surface
+        // and the long-press menu already carries every action; adding a gesture
+        // to it only made the options bleed through the glass at rest. Swipe
+        // belongs on the item rows inside a list, where the surface is smaller
+        // and deleting one thing is the common action.
         Button(action: {
             Haptics.light()
             onOpen()
@@ -48,7 +53,6 @@ struct ListCard: View {
         .buttonStyle(.plain)
         .matchedTransitionSource(id: matchedID, in: namespace)
         .contextMenu { contextMenu } preview: { preview }
-        .swipeActions(edge: .trailing) { }
         .sheet(isPresented: $showingOptions) {
             ListOptionsSheet(listId: list.id)
         }

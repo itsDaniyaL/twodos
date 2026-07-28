@@ -53,10 +53,39 @@ final class WatchConnectivityBridge: NSObject {
     func requestSync() {
         let session = WCSession.default
         guard session.activationState == .activated, session.isReachable else { return }
-        session.sendMessage(["request": "sync"], replyHandler: { [weak self] reply in
+        session.sendMessage([Key.request: Key.sync], replyHandler: { [weak self] reply in
             Task { @MainActor in self?.apply(context: reply) }
         }, errorHandler: { [logger] error in
             logger.warning("Sync request failed: \(error.localizedDescription)")
+        })
+    }
+
+    /// Tells the phone the watch has changed something on the server.
+    ///
+    /// The watch talks to the API directly, so the phone has no way of knowing
+    /// a tick happened — the server does not push the user their own changes,
+    /// and the phone would otherwise show a stale list until it was next
+    /// foregrounded or pulled. The phone refreshes and replies with a fresh
+    /// snapshot, which also corrects the watch if the write raced with anything.
+    ///
+    /// Falls back to `transferUserInfo` when the phone is not reachable, which
+    /// is most of the time — that queue is delivered whenever the phone next
+    /// runs, so the notification is never simply dropped.
+    func notifyMutation() {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        let message = [Key.request: Key.didMutate]
+
+        guard session.isReachable else {
+            session.transferUserInfo(message)
+            return
+        }
+
+        session.sendMessage(message, replyHandler: { [weak self] reply in
+            Task { @MainActor in self?.apply(context: reply) }
+        }, errorHandler: { [logger] error in
+            logger.warning("Mutation notice failed, queueing: \(error.localizedDescription)")
+            session.transferUserInfo(message)
         })
     }
 
@@ -69,6 +98,10 @@ final class WatchConnectivityBridge: NSObject {
         static let expiresAt = "e"
         static let lists = "l"
         static let signedOut = "o"
+        // Watch → phone. Must match `WatchPayloadKey` on the phone side.
+        static let request = "r"
+        static let sync = "sync"
+        static let didMutate = "mut"
     }
 
     private func apply(context: [String: Any]) {

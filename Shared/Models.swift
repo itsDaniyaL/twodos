@@ -135,8 +135,29 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
     var doBefore: Date?
     var updatedAt: Date?
 
+    // MARK: Per-item location
+    //
+    // The server has carried these since before either client existed — the
+    // `Todo` table has the same five location columns as `TodoList`, and
+    // `getTodos` selects every column of every included item. Neither the
+    // Flutter app nor this one decoded them, so "remind me about *this one
+    // thing* at the chemist" was a feature the API already supported and no
+    // user could reach.
+
+    var locationName: String?
+    var locationLat: Double?
+    var locationLng: Double?
+    var locationRadius: Double?
+    var locationTriggerValue: String?
+
+    /// userId of whoever last edited this item; `nil` means never edited since
+    /// it was created. Surfaced so a shared list can say who changed what.
+    var updatedBy: String?
+
     enum CodingKeys: String, CodingKey {
-        case id, listId, title, done, order, doBefore, updatedAt
+        case id, listId, title, done, order, doBefore, updatedAt, updatedBy
+        case locationName, locationLat, locationLng, locationRadius
+        case locationTriggerValue = "locationTrigger"
     }
 
     init(from decoder: Decoder) throws {
@@ -148,10 +169,18 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
         order = try c.decodeIfPresent(Int.self, forKey: .order) ?? 0
         doBefore = try c.decodeIfPresent(Date.self, forKey: .doBefore)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+        updatedBy = try c.decodeIfPresent(String.self, forKey: .updatedBy)
+        locationName = try c.decodeIfPresent(String.self, forKey: .locationName)
+        locationLat = try c.decodeIfPresent(Double.self, forKey: .locationLat)
+        locationLng = try c.decodeIfPresent(Double.self, forKey: .locationLng)
+        locationRadius = try c.decodeIfPresent(Double.self, forKey: .locationRadius)
+        locationTriggerValue = try c.decodeIfPresent(String.self, forKey: .locationTriggerValue)
     }
 
     init(id: String, listId: String, title: String, done: Bool = false, order: Int = 0,
-         doBefore: Date? = nil, updatedAt: Date? = nil) {
+         doBefore: Date? = nil, updatedAt: Date? = nil, updatedBy: String? = nil,
+         locationName: String? = nil, locationLat: Double? = nil, locationLng: Double? = nil,
+         locationRadius: Double? = nil, locationTriggerValue: String? = nil) {
         self.id = id
         self.listId = listId
         self.title = title
@@ -159,12 +188,21 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
         self.order = order
         self.doBefore = doBefore
         self.updatedAt = updatedAt
+        self.updatedBy = updatedBy
+        self.locationName = locationName
+        self.locationLat = locationLat
+        self.locationLng = locationLng
+        self.locationRadius = locationRadius
+        self.locationTriggerValue = locationTriggerValue
     }
 
     var isOverdue: Bool {
         guard !done, let doBefore else { return false }
         return doBefore < .now
     }
+
+    var hasLocation: Bool { locationLat != nil && locationLng != nil }
+    var trigger: GeofenceTrigger { GeofenceTrigger(apiValue: locationTriggerValue) }
 }
 
 struct TodoList: Decodable, Identifiable, Equatable, Hashable, Sendable {
@@ -247,8 +285,15 @@ struct TodoList: Decodable, Identifiable, Equatable, Hashable, Sendable {
 
     var isComplete: Bool { totalCount > 0 && completedCount == totalCount }
 
+    /// A finished list is never overdue, however long ago its deadline was.
+    ///
+    /// `Todo.isOverdue` has always guarded on `done`; this one did not, so a
+    /// list whose every item was ticked off went on calling itself overdue —
+    /// nagging in the detail view, colouring its chip red, and sorting itself
+    /// above live work on both the phone and the watch. A deadline describes
+    /// when the work was due, and there is no work left.
     var isOverdue: Bool {
-        guard let doBefore else { return false }
+        guard !isComplete, let doBefore else { return false }
         return doBefore < .now
     }
 

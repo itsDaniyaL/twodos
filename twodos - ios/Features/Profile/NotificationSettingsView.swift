@@ -127,6 +127,32 @@ struct NotificationSettingsView: View {
                 action: openSettings
             )
         }
+
+        // iOS caps an app at 20 monitored regions, and Low Power Mode lowers
+        // that further. The client has always silently dropped the least urgent
+        // ones past the cap; saying so is the difference between a reminder that
+        // is off and a reminder the user believes is on.
+        //
+        // This became worth surfacing once individual items could be pinned:
+        // reaching the cap used to take twenty separate lists, which almost
+        // nobody had.
+        if location.droppedPlaceCount > 0 {
+            InlineBanner(
+                kind: .warning,
+                title: "Watching \(location.monitoredCount) place\(location.monitoredCount == 1 ? "" : "s")",
+                message: droppedPlacesMessage
+            )
+        }
+    }
+
+    private var droppedPlacesMessage: String {
+        let dropped = location.droppedPlaceCount
+        let noun = dropped == 1 ? "place isn't" : "places aren't"
+        let base = "\(dropped) more \(noun) being watched — iOS limits how many "
+            + "twodos can track at once, so the least urgent ones wait their turn."
+        return location.isConservingPower
+            ? base + " Low Power Mode is on, which lowers the limit further."
+            : base
     }
 
     private var testButton: some View {

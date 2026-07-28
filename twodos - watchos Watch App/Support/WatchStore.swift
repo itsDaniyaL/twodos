@@ -39,8 +39,23 @@ final class WatchStore {
     /// reverting and leaving the user unsure what happened.
     private(set) var lastError: String?
 
+    /// Set when a complication tap should open a specific list.
+    var pendingListToOpen: String?
+
     /// Items ticked while offline, replayed on the next successful sync.
     private var pendingToggles: [String: Bool] = [:]
+
+    /// Acts on a `twodos://` URL handed over by a complication.
+    ///
+    /// Held rather than acted on when the watch has no session yet: the app is
+    /// launching into the "open twodos on iPhone" screen, and the intent is
+    /// replayed once the lists arrive. Dropping it would make a tap on a
+    /// complication do nothing on exactly the launch where the user was most
+    /// deliberately asking for something.
+    func handle(deepLink: DeepLink?) {
+        guard case .list(let id) = deepLink else { return }
+        pendingListToOpen = id
+    }
 
     init() {
         bridge.onSessionReceived = { [weak self] _, _ in
@@ -101,9 +116,12 @@ final class WatchStore {
         do {
             let fetched = try await api.lists()
             lists = WatchList.snapshot(from: fetched, currentUserId: nil)
-            WatchCache.save(lists)
             lastError = nil
+            // Before `persist()`: the snapshot it writes records whether anyone
+            // is signed in, and reading a phase we are about to change would
+            // publish "not signed in" over a successful refresh.
             phase = .ready
+            persist()
         } catch APIError.unauthorized {
             // Only the phone holds a refresh token, so this is its problem.
             phase = .sessionExpired
@@ -115,11 +133,23 @@ final class WatchStore {
         }
     }
 
+    /// Writes the lists everywhere outside this object that draws them: the disk
+    /// cache the app reads on launch, and the snapshot the complications read.
+    ///
+    /// Every path that changes `lists` calls this, including the optimistic tick
+    /// in `setItem` and its rollback — so a complication reflects a tap on the
+    /// watch immediately rather than waiting for the phone to hear about it and
+    /// push a new payload back.
+    private func persist() {
+        WatchCache.save(lists)
+        WidgetPublisher.publish(.make(fromWatch: lists, isSignedIn: phase == .ready))
+    }
+
     private func applySnapshot(_ snapshot: [WatchList]) {
         guard !snapshot.isEmpty || lists.isEmpty else { return }
         lists = snapshot
-        WatchCache.save(snapshot)
         if phase != .ready, WatchSessionStore.shared.token != nil { phase = .ready }
+        persist()
     }
 
     // MARK: - Writes
@@ -132,7 +162,7 @@ final class WatchStore {
 
         let previous = lists[listIndex].items[itemIndex].done
         lists[listIndex].items[itemIndex].done = done
-        WatchCache.save(lists)
+        persist()
         WatchHaptics.play(done ? .success : .click)
 
         guard let token = WatchSessionStore.shared.token else {
@@ -145,12 +175,14 @@ final class WatchStore {
             _ = try await api.setTodoDone(listId: listId, todoId: itemId, done: done)
             pendingToggles[itemId] = nil
             lastError = nil
+            // The server has it; the phone does not know yet.
+            bridge.notifyMutation()
         } catch APIError.offline {
             // Keep the optimistic state and replay when there is a network.
             pendingToggles[itemId] = done
         } catch {
             lists[listIndex].items[itemIndex].done = previous
-            WatchCache.save(lists)
+            persist()
             lastError = "Couldn't save that"
             WatchHaptics.play(.failure)
         }
@@ -173,6 +205,7 @@ final class WatchStore {
 
         do {
             _ = try await api.createTodo(listId: listId, title: trimmed)
+            bridge.notifyMutation()
             await refresh()
         } catch {
             lastError = "Couldn't add that"
@@ -183,6 +216,7 @@ final class WatchStore {
 
     private func flushPendingToggles() async {
         guard !pendingToggles.isEmpty else { return }
+        var didFlushAny = false
         for (itemId, done) in pendingToggles {
             guard let list = lists.first(where: { $0.items.contains { $0.id == itemId } }) else {
                 pendingToggles[itemId] = nil
@@ -190,8 +224,12 @@ final class WatchStore {
             }
             if (try? await api.setTodoDone(listId: list.id, todoId: itemId, done: done)) != nil {
                 pendingToggles[itemId] = nil
+                didFlushAny = true
             }
         }
+        // Ticks made offline reach the server here rather than in `setItem`, so
+        // this is the only place the phone can be told about them.
+        if didFlushAny { bridge.notifyMutation() }
     }
 
     // MARK: - Derived

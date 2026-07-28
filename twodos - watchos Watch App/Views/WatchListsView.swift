@@ -12,16 +12,39 @@ import SwiftUI
 struct WatchListsView: View {
     @Environment(WatchStore.self) private var store
 
+    private enum Tabs: Hashable { case upNext, lists }
+
+    @State private var selection: Tabs = .upNext
+    /// Lifted out of `AllListsView` so a complication tap can push a list onto
+    /// it. A `NavigationStack` with no bound path can only be driven by the
+    /// user's own taps, which is exactly what a deep link is not.
+    @State private var listsPath = NavigationPath()
+
     var body: some View {
-        TabView {
-            Tab("Up next", systemImage: "checklist") {
+        TabView(selection: $selection) {
+            Tab("Up next", systemImage: "checklist", value: Tabs.upNext) {
                 NavigationStack { UpNextView() }
             }
-            Tab("Lists", systemImage: "square.stack") {
-                NavigationStack { AllListsView() }
+            Tab("Lists", systemImage: "square.stack", value: Tabs.lists) {
+                NavigationStack(path: $listsPath) {
+                    AllListsView()
+                        .navigationDestination(for: String.self) { listId in
+                            WatchListDetailView(listId: listId)
+                        }
+                }
             }
         }
         .tabViewStyle(.verticalPage)
+        // `task(id:)` rather than `onChange`: a complication tap sets the intent
+        // while the app is still on its loading or "open twodos on iPhone"
+        // screen, so this view is mounted *after* the value it has to act on.
+        .task(id: store.pendingListToOpen) {
+            guard let listId = store.pendingListToOpen else { return }
+            selection = .lists
+            listsPath = NavigationPath()
+            listsPath.append(listId)
+            store.pendingListToOpen = nil
+        }
     }
 }
 
@@ -113,9 +136,9 @@ struct AllListsView: View {
     var body: some View {
         List {
             ForEach(store.lists) { list in
-                NavigationLink {
-                    WatchListDetailView(listId: list.id)
-                } label: {
+                // A value-based link so a tap and a deep link push the same
+                // destination through the same path.
+                NavigationLink(value: list.id) {
                     WatchListRow(list: list)
                 }
             }

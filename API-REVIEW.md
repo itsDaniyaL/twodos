@@ -218,10 +218,13 @@ response so clients don't have to infer it — e.g.
    cellular. A `?fields=compact` variant, or the delta sync in §2.6, would help
    watch battery life more than any client-side change could.
 
-10. **Item-level location reminders in the UI.**
-   `PATCH /api/todos/{listId}/items/{todoId}/location` exists and works; neither
-   client exposes it. The iOS client is structured to add it cheaply — see
-   §3.
+10. ~~**Item-level location reminders in the UI.**~~ **Shipped on iOS.**
+   `PATCH /api/todos/{listId}/items/{todoId}/location` is now called from
+   `LocationPickerView`, and `GET /api/todos` was already returning the item
+   location columns via `include: [{ all: true }]` — they were simply never
+   decoded. **Remaining gap:** `POST /api/todos/{listId}/location-trigger` is
+   list-level, so a per-item crossing cannot tell the partner *which* item. See
+   `backend/plans/23-item-location-triggers.md`.
 
 11. **`GET /api/todos/nearby` is unused by both clients.**
     It returns lists whose geofence overlaps a point. Worth either building a
@@ -246,10 +249,10 @@ Ordered by value-to-effort. The architecture already accommodates all of these.
 
 | Feature | Why | Where it slots in |
 |---|---|---|
-| **Widgets + Live Activities** | A shared list on the Home Screen is the single most requested feature for apps of this shape. A Live Activity during a shopping trip ("3 items left") is a natural fit with the geofence trigger. | New widget extension reading a shared App Group cache written by `AppStore`. |
-| **App Intents / Siri** | "Add milk to the weekly shop" without opening the app. Also unlocks Shortcuts, the Action Button, and Spotlight. | `AppIntent` wrappers over `AppStore.addTodo` / `createList`. |
+| ~~**Widgets**~~ **Shipped.** Live Activities still open. | A Live Activity during a shopping trip ("3 items left") remains a natural fit with the geofence trigger. | Widgets read `WidgetSnapshotStore`; a Live Activity would start from the same snapshot. |
+| ~~**App Intents / Siri**~~ **Shipped.** | `AddTodoIntent`, `OpenListIntent`, `OutstandingCountIntent`, with `TodoListEntity` resolving list names from the App Group snapshot. Declared in the app target, not an extension, so credentials stay in one process. | `twodos - ios/Features/Intents/`. |
 | **Offline queue** | Right now a failed write rolls back and tells the user. Queuing mutations and replaying them on reconnect would make the app usable on the Tube. | A `PendingMutation` log persisted alongside `TokenStore`; replay in `handleForeground`. |
-| **Item-level location reminders** | The API already supports it (§2.9). "Remind me about *this one item* at the chemist." | `LocationPickerView` already takes a list; generalise to a target enum. |
+| ~~**Item-level location reminders**~~ **Shipped.** | `LocationPickerView` now takes a `LocationTarget` (`.list` / `.item`); reachable from a swipe and the context menu on `TodoRow`. | — |
 | **Share Extension** | Send a link or a photo from another app straight into a list. | New extension target; posts through `APIClient.createTodo`. |
 
 ### Medium-term
@@ -257,7 +260,7 @@ Ordered by value-to-effort. The architecture already accommodates all of these.
 | Feature | Why |
 |---|---|
 | **iPad and Mac Catalyst layout** | The project is already `TARGETED_DEVICE_FAMILY = 1,2`. A `NavigationSplitView` variant would make it a genuine iPad app rather than a stretched phone one. |
-| **Watch complication / Smart Stack widget** | The watch app ships; the complication does not. Outstanding count and next deadline on the watch face is the highest-value remaining piece. Needs a new widget-extension target. |
+| ~~**Watch complication / Smart Stack widget**~~ **Shipped.** Rectangular, circular, inline and corner families. |
 | **Watch notifications with custom UI** | Deadline and geofence notifications already mirror to the watch. A custom long-look interface with a "Mark done" action would let them be dealt with from the wrist. |
 | **More than two people per list** | The name says two, but `partnerId` being a single column is the only thing enforcing it. If the product ever wants small groups, this is the schema change to plan for. |
 | **Passkeys** | The API's `social-login` flow already proves the server can verify third-party credentials. Passkeys would remove passwords entirely. |
@@ -265,9 +268,10 @@ Ordered by value-to-effort. The architecture already accommodates all of these.
 
 ### Worth considering
 
-- **Undo.** Deleting an item is currently permanent and immediate. A soft-delete
-  window (client-side is enough) would remove the need for the confirmation on
-  swipe-to-delete.
+- ~~**Undo.**~~ **Shipped.** Deletions of lists and items are held for five
+  seconds before the request is sent, and committed early on backgrounding and
+  sign-out. There is no restore endpoint, so the window is bought by deferring
+  the request rather than reversing it.
 - **Smart list suggestions.** With `Foundation Models` on-device (iOS 26), the
   app could suggest items based on list history with no server cost and no data
   leaving the device.
@@ -284,9 +288,11 @@ Stated plainly so they don't come as surprises.
 1. **Reorder is O(n) requests.** Blocked on API change §2.5.
 2. **No offline writes.** Mutations fail and roll back when offline; reads fall
    back to whatever was last loaded.
-3. **Geofences are capped at 20** by iOS. The client prioritises by soonest
-   deadline, then most recently updated, and drops the rest. There is currently
-   no UI telling the user this has happened.
+3. **Geofences are capped at 20** by iOS. Regions are now keyed by *place*
+   rather than by list or item, so many reminders at one location cost one
+   region — the cap is reached by distinct places visited, not by reminders set.
+   Low Power Mode lowers the budget further. Notification Settings shows how many
+   places are being watched and how many were dropped.
 4. **`aps-environment` is not in the entitlements.** The app has no remote push
    because the API has no APNs support (§2.8). Adding it is a one-line
    entitlement change plus a device-token registration call.
@@ -294,8 +300,9 @@ Stated plainly so they don't come as surprises.
    place; the capability must be enabled on the App ID
    (`com.afzaalahmadzeeshan.ios.twodos.twodos---ios`) before a device build will
    sign. Simulator builds work as-is.
-6. **The watch has no complication.** See the roadmap above — it needs a widget
-   extension target, which is best added through Xcode's own template.
+6. ~~**The watch has no complication.**~~ **Shipped.** Both platforms now have
+   widget extensions (`twodos - ios widgets`, `twodos - watchos widgets`) fed by
+   a snapshot the app writes to the App Group `group.com.afzaalahmadzeeshan.ios.twodos`.
 7. **The watch cannot sign in.** By design: it takes its session from the phone,
    and holds no refresh token, so when the session expires it points at the phone
    rather than renewing.

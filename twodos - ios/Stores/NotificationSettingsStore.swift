@@ -36,9 +36,21 @@ final class NotificationSettingsStore {
     }
 
     /// Arrive/leave reminders for pinned places.
+    ///
+    /// Unlike the others, this one is not purely subtractive: geofences are
+    /// registered with the system and cost battery whether or not anything is
+    /// done with them. `AppStore` observes the change and tears them down, so
+    /// switching this off stops the watching rather than only the notifying.
     var locationReminders: Bool {
-        didSet { defaults.set(locationReminders, forKey: Key.locations) }
+        didSet {
+            defaults.set(locationReminders, forKey: Key.locations)
+            guard locationReminders != oldValue else { return }
+            onLocationRemindersChanged?(locationReminders)
+        }
     }
+
+    /// Set by `AppStore` so the geofences can follow the switch.
+    var onLocationRemindersChanged: ((Bool) -> Void)?
 
     /// Invites accepted, items added by a partner, lists deleted.
     var partnerActivity: Bool {

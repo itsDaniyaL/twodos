@@ -12,12 +12,42 @@ struct TodoRow: View {
     let onToggle: () -> Void
     let onEdit: () -> Void
     let onSetDeadline: () -> Void
+    /// Pin this one item to a place. The API has always supported it; nothing
+    /// reached it until now.
+    let onSetLocation: () -> Void
     let onDelete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPressed = false
 
     var body: some View {
+        // Two actions, not five. The long-press menu carries everything —
+        // editing, the place reminder, marking done — so the swipe only needs
+        // what a person reaches for one-handed while scanning a list.
+        SwipeActionsContainer(actions: swipeActions) {
+            rowCard
+        }
+    }
+
+    private var swipeActions: [SwipeAction] {
+        [
+            SwipeAction(
+                title: "Delete",
+                systemImage: "trash",
+                tint: Brand.danger,
+                isDestructive: true,
+                handler: onDelete
+            ),
+            SwipeAction(
+                title: todo.doBefore == nil ? "Remind" : "Change",
+                systemImage: "bell",
+                tint: Brand.info,
+                handler: onSetDeadline
+            )
+        ]
+    }
+
+    private var rowCard: some View {
         GlassCard(interactive: true, radius: Metrics.controlRadius) {
             HStack(alignment: .center, spacing: 12) {
                 checkbox
@@ -37,21 +67,6 @@ struct TodoRow: View {
         .onLongPressGesture(minimumDuration: 0.01, pressing: { pressing in
             isPressed = pressing
         }, perform: {})
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
-            }
-            Button(action: onSetDeadline) {
-                Label("Remind me", systemImage: "bell")
-            }
-            .tint(Brand.info)
-        }
-        .swipeActions(edge: .leading) {
-            Button(action: onEdit) {
-                Label("Edit", systemImage: "pencil")
-            }
-            .tint(Brand.violet)
-        }
         .contextMenu {
             Button(action: onToggle) {
                 Label(todo.done ? "Mark as not done" : "Mark as done",
@@ -62,6 +77,10 @@ struct TodoRow: View {
             }
             Button(action: onSetDeadline) {
                 Label(todo.doBefore == nil ? "Add a reminder" : "Change reminder", systemImage: "bell")
+            }
+            Button(action: onSetLocation) {
+                Label(todo.hasLocation ? "Change the place" : "Remind me at a place",
+                      systemImage: "mappin.and.ellipse")
             }
             Divider()
             Button(role: .destructive, action: onDelete) {
@@ -121,6 +140,18 @@ struct TodoRow: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Brand.danger)
             }
+
+            // Without this a place reminder is invisible until the moment it
+            // fires, and the user has no way to tell they set one.
+            if todo.hasLocation {
+                Label(
+                    "\(todo.trigger.shortTitle) at \(todo.locationName ?? "a saved place")",
+                    systemImage: "mappin.and.ellipse"
+                )
+                .font(.caption2)
+                .foregroundStyle(todo.done ? .tertiary : .secondary)
+                .lineLimit(1)
+            }
         }
     }
 
@@ -136,6 +167,10 @@ struct TodoRow: View {
 
     private var accessibilityLabel: String {
         var parts = [todo.title]
+        if todo.hasLocation {
+            parts.append("reminder when you \(todo.trigger.shortTitle.lowercased()) at "
+                         + (todo.locationName ?? "a saved place"))
+        }
         if let due = todo.doBefore {
             parts.append(todo.done ? "was due \(Format.deadline(due))" : "due \(Format.deadline(due))")
         }

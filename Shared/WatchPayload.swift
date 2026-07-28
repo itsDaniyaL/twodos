@@ -56,8 +56,10 @@ struct WatchList: Codable, Identifiable, Hashable, Sendable {
     var doneCount: Int { items.count(where: \.done) }
     var isComplete: Bool { !items.isEmpty && openCount == 0 }
 
+    /// Matches `TodoList.isOverdue` — a finished list is not overdue, so it
+    /// neither reddens on the wrist nor sorts above live work.
     var isOverdue: Bool {
-        guard let dueAt else { return false }
+        guard !isComplete, let dueAt else { return false }
         return dueAt < .now
     }
 }

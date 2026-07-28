@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import twodos_ios
+@testable import twodos___ios
 
 @Suite("Geofence crossings")
 struct GeofenceTransitionTests {
@@ -113,7 +113,13 @@ struct WatchPayloadTests {
                 ["id": $0.id, "title": $0.title, "done": $0.done, "order": $0.order]
             }
         ]
-        if let inviteStatus { fields["inviteStatus"] = inviteStatus }
+        if let inviteStatus {
+            fields["inviteStatus"] = inviteStatus
+            // The real API sends both, and `isPendingInvite` requires both —
+            // `inviteAccepted` defaults to true when absent, so a fixture with
+            // only the status is not actually a pending invite.
+            fields["inviteAccepted"] = inviteStatus != APIConstants.InviteStatus.pending
+        }
         if let partnerId { fields["partnerId"] = partnerId }
         if let locationName { fields["locationName"] = locationName }
         if pinned {

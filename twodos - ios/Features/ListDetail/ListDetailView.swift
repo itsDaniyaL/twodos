@@ -19,6 +19,10 @@ struct ListDetailView: View {
     /// Swaps the action bar into the inline colour picker.
     @State private var isPickingColor = false
     @State private var editingTodo: Todo?
+    /// The item whose place is being pinned.
+    @State private var locationTodo: Todo?
+    /// Owned here so swiping a second item closes the first.
+    @State private var swipeCoordinator = SwipeCoordinator()
     @State private var deadlineTarget: DeadlineTarget?
     @State private var typingTask: Task<Void, Never>?
     @FocusState private var addFieldFocused: Bool
@@ -54,6 +58,10 @@ struct ListDetailView: View {
         .refreshable { await store.refreshList(id: listId) }
         .sheet(isPresented: $showingOptions) { ListOptionsSheet(listId: listId) }
         .sheet(isPresented: $showingInfo) { ListInfoSheet(listId: listId) }
+        .environment(\.swipeCoordinator, swipeCoordinator)
+        .sheet(item: $locationTodo) { todo in
+            LocationPickerView(listId: listId, todo: todo)
+        }
         .sheet(item: $editingTodo) { todo in
             EditTodoSheet(listId: listId, todo: todo)
         }
@@ -71,11 +79,6 @@ struct ListDetailView: View {
             )
         }
         .onDisappear { stopTyping() }
-        .task { // TEMPX
-            if ProcessInfo.processInfo.environment["TWODOS_OPEN_SHEET"] == "options" {
-                try? await Task.sleep(for: .seconds(1)); showingOptions = true
-            }
-        }
     }
 
     // MARK: - Content
@@ -142,10 +145,14 @@ struct ListDetailView: View {
         // draws its own padding, which left a visible gap above the first item
         // on every list without a deadline — i.e. most of them.
         let geofenceIsCrippled = list.hasLocation && location.needsAlwaysUpgrade
+        // A finished list has nothing left to be late for. The "all done" mark
+        // below already says what there is to say, and an overdue banner over
+        // the top of it is just wrong.
+        let showsDeadline = list.doBefore != nil && !list.isComplete
 
-        if list.doBefore != nil || list.archived || geofenceIsCrippled {
+        if showsDeadline || list.archived || geofenceIsCrippled {
             VStack(spacing: 8) {
-                if let deadline = list.doBefore {
+                if showsDeadline, let deadline = list.doBefore {
                     DeadlineBanner(deadline: deadline) {
                         deadlineTarget = .list(currentDate: deadline, title: list.label)
                     }
@@ -227,6 +234,7 @@ struct ListDetailView: View {
                             title: todo.title
                         )
                     },
+                    onSetLocation: { locationTodo = todo },
                     onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
                 )
                 .transition(.rowInsertion)
@@ -283,6 +291,7 @@ struct ListDetailView: View {
                             onSetDeadline: {
                                 deadlineTarget = .item(todoId: todo.id, currentDate: todo.doBefore, title: todo.title)
                             },
+                            onSetLocation: { locationTodo = todo },
                             onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
                         )
                         .transition(.rowInsertion)

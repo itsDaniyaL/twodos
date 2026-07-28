@@ -72,18 +72,29 @@ struct AppearanceSettingsView: View {
     // MARK: - Preview
 
     /// A mock list card that reacts live to every control below it.
+    ///
+    /// It has to contain something each control can visibly change, or the
+    /// preview quietly stops being one. The card previously used a fixed list
+    /// tint and fixed brand colours throughout, so changing the accent — the
+    /// control most likely to send someone here — altered nothing on screen and
+    /// the preview looked broken.
+    ///
+    /// So: the accent drives the progress ring, the section label and the
+    /// deadline chip, exactly as it does on the real screens through `.tint`.
+    /// The list tint stays a list tint, because that is what it is — the card
+    /// would be lying if the accent recoloured it.
     private var preview: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(title: "Preview")
 
             GlassCard(
-                tint: ListTint.all[1].color,
+                tint: previewTint,
                 tintStrength: theme.tintEntireCard ? 0.26 : 0.11
             ) {
                 HStack(alignment: .top, spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 15, style: .continuous)
-                            .fill(ListTint.all[1].color)
+                            .fill(previewTint)
                         Circle()
                             .stroke(.white.opacity(0.32), lineWidth: 3)
                             .frame(width: 26, height: 26)
@@ -94,21 +105,21 @@ struct AppearanceSettingsView: View {
                             .rotationEffect(.degrees(-90))
                     }
                     .frame(width: 46, height: 46)
-                    .shadow(color: ListTint.all[1].color.opacity(0.35), radius: 5, y: 2)
+                    .shadow(color: previewTint.opacity(0.35), radius: 5, y: 2)
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
                             Text("Weekend trip").font(.headline)
                             Image(systemName: "star.fill")
                                 .font(.caption)
-                                .foregroundStyle(Brand.lime)
+                                .foregroundStyle(theme.accent.color)
                         }
                         Text("3 of 5 done")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         HStack(spacing: 6) {
                             MetaChip(icon: "clock", text: "Tomorrow, 09:00",
-                                     tint: Brand.info, emphasised: true)
+                                     tint: theme.accent.color, emphasised: true)
                             MetaChip(icon: "person.2.fill", text: "Sam")
                         }
                     }
@@ -116,9 +127,22 @@ struct AppearanceSettingsView: View {
                 }
                 .padding(Metrics.cardPadding)
             }
+            // Every control below is named here, so a change to any of them
+            // animates rather than snapping. `textSize` included: the card
+            // reflows when it changes, and an unanimated reflow reads as a
+            // glitch rather than as the setting taking effect.
             .motion(Motion.content, value: theme.tintEntireCard)
+            .motion(Motion.content, value: theme.accent)
+            .motion(Motion.content, value: theme.textSize)
             .accessibilityHidden(true)
         }
+    }
+
+    /// Graphite removes hue from the interface, so the preview card follows it
+    /// to a neutral list colour — otherwise the one accent whose entire purpose
+    /// is "no colour" would still show a coloured card.
+    private var previewTint: Color {
+        theme.accent == .graphite ? ListTint.all[0].color : ListTint.all[1].color
     }
 
     // MARK: - Accent

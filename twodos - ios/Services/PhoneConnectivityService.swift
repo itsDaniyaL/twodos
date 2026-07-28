@@ -20,6 +20,15 @@ final class PhoneConnectivityService: NSObject {
     /// Set by the app so the watch's explicit sync request can be answered.
     var currentPayload: (() -> [String: Any])?
 
+    /// Called when the watch reports that it changed something on the server.
+    ///
+    /// The watch writes to the API directly rather than proxying through the
+    /// phone, so a tick on the wrist left the phone holding a stale list until
+    /// something else happened to refresh it — a foreground, a pull, or a socket
+    /// event that never came for the user's *own* change. This is the missing
+    /// half of that conversation.
+    var onWatchMutation: (() async -> Void)?
+
     private(set) var isWatchPaired = false
     private(set) var isWatchAppInstalled = false
 
@@ -103,6 +112,11 @@ enum WatchPayloadKey {
     static let expiresAt = "e"
     static let lists = "l"
     static let signedOut = "o"
+    /// Watch → phone. The watch mirrors these in its own `Key` enum rather than
+    /// sharing this type, because the bridge file is not in the watch target.
+    static let request = "r"
+    static let sync = "sync"
+    static let didMutate = "mut"
 }
 
 // MARK: - Delegate
@@ -142,14 +156,30 @@ extension PhoneConnectivityService: WCSessionDelegate {
     }
 
     /// The watch asking for a session directly, which happens when it launches
-    /// with nothing cached.
+    /// with nothing cached, or telling us it changed something.
     nonisolated func session(
         _ session: WCSession,
         didReceiveMessage message: [String: Any],
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
+        let isMutation = message[WatchPayloadKey.request] as? String == WatchPayloadKey.didMutate
         Task { @MainActor in
+            // Pull the change down *before* replying, so the snapshot the watch
+            // gets back already agrees with what it just did. Replying first
+            // would hand it the stale list it was trying to correct.
+            if isMutation { await self.onWatchMutation?() }
             replyHandler(self.currentPayload?() ?? [:])
         }
+    }
+
+    /// The queued fallback. `sendMessage` needs the phone reachable and awake;
+    /// when it is not — the common case, since the phone is usually in a pocket
+    /// — the watch falls back to `transferUserInfo`, which is delivered
+    /// whenever the phone next runs. Without this, a tick made with the phone
+    /// asleep would be lost from the phone's point of view until something else
+    /// refreshed it.
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        guard userInfo[WatchPayloadKey.request] as? String == WatchPayloadKey.didMutate else { return }
+        Task { @MainActor in await self.onWatchMutation?() }
     }
 }

@@ -10,6 +10,9 @@ struct TwodosWatchApp: App {
                 .environment(store)
                 .tint(Brand.meadow)
                 .task { await store.start() }
+                .onOpenURL { url in
+                    store.handle(deepLink: DeepLink(url: url))
+                }
         }
     }
 }

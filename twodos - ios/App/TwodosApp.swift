@@ -24,13 +24,14 @@ struct TwodosApp: App {
                 .environment(location)
                 .task {
                     Haptics.prepare()
-                    if let t = ProcessInfo.processInfo.environment["TWODOS_DEBUG_TOKEN"] { // TEMPX
-                        TokenStore.shared.save(AuthSession(token: t, expiresAt: .now.addingTimeInterval(3000), refreshToken: nil, refreshExpiresAt: nil))
-                    }
                     await store.start()
-                    if let l = ProcessInfo.processInfo.environment["TWODOS_OPEN_LIST"] { // TEMPX
-                        try? await Task.sleep(for: .seconds(1)); store.pendingListToOpen = l
-                    }
+                }
+                .onOpenURL { url in
+                    // A widget tap. The intent goes through the same
+                    // `pendingListToOpen` channel a notification tap uses, so
+                    // there is one path into a list rather than two that have to
+                    // be kept behaving alike.
+                    store.handle(deepLink: DeepLink(url: url))
                 }
                 .onChange(of: scenePhase) { _, phase in
                     // Coming back from the background is the moment to re-check
@@ -38,6 +39,10 @@ struct TwodosApp: App {
                     // and to reconcile with anything that happened while away.
                     if phase == .active {
                         Task { await store.handleForeground() }
+                    } else {
+                        // A suspended app's timer may never fire, and a deletion
+                        // the user watched happen must not quietly come back.
+                        Task { await store.commitPendingDeletion() }
                     }
                 }
         }

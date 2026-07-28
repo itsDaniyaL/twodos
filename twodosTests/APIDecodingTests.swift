@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import twodos_ios
+@testable import twodos___ios
 
 /// Decoding tests written against **real captured responses** from the twodos
 /// API, not invented fixtures. Every JSON literal below was taken verbatim from

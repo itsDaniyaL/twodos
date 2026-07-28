@@ -9,6 +9,9 @@ import SwiftUI
 /// notification badge live where iOS users look for it.
 struct MainTabView: View {
     @Environment(AppStore.self) private var store
+    /// Requests arriving from Siri and Shortcuts, which may run before this view
+    /// exists.
+    @State private var intentNavigation = IntentNavigation.shared
 
     @State private var selection: Tabs = .lists
     /// Bumped to pop a tab's navigation stack when its tab is re-tapped.
@@ -49,13 +52,50 @@ struct MainTabView: View {
         // giving the glass cards the full height of the display.
         .tabBarMinimizeBehavior(.onScrollDown)
         .overlay(alignment: .top) { globalBanner }
-        .onChange(of: store.pendingListToOpen) { _, listId in
-            // A notification tap or deep link asked for a specific list.
-            guard let listId else { return }
+        .overlay(alignment: .bottom) { undoBanner }
+        // "Open my shopping list" may have run before this view existed, so the
+        // request is drained on appear as well as on change.
+        .task(id: intentNavigation.pending) {
+            guard let link = intentNavigation.take() else { return }
+            store.handle(deepLink: link)
+        }
+        // `task(id:)` rather than `onChange`, because a cold launch from a
+        // widget tap sets the intent *before* this view exists — `onChange`
+        // only fires for changes it was mounted to witness, so the first and
+        // most important tap of a session was the one it missed.
+        .task(id: store.pendingListToOpen) {
+            // A notification tap, widget tap, or Shortcut asked for a list.
+            guard let listId = store.pendingListToOpen else { return }
             selection = .lists
             listsPath = NavigationPath()
             listsPath.append(ListRoute.detail(listId))
             store.pendingListToOpen = nil
+        }
+    }
+
+    /// The window to take back a deletion.
+    ///
+    /// Sits at the bottom, above the tab bar, because that is where the thumb
+    /// already is after a swipe — an undo the user has to reach to the top of
+    /// the screen for is one they will not take in five seconds.
+    ///
+    /// It carries no dismiss button on purpose: dismissing and letting it expire
+    /// do the same thing, and a second control would only make the user wonder
+    /// whether one of them cancels the deletion.
+    @ViewBuilder
+    private var undoBanner: some View {
+        if let prompt = store.undoPrompt {
+            InlineBanner(
+                kind: .info,
+                title: prompt.title,
+                message: prompt.message,
+                actionTitle: "Undo",
+                action: { store.undoDeletion() }
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 76)
+            .transition(.banner)
+            .motion(Motion.content, value: prompt.id)
         }
     }
 

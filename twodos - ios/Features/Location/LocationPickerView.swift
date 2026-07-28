@@ -2,7 +2,7 @@ import SwiftUI
 import MapKit
 import CoreLocation
 
-/// Pinning a place to a list, on Apple Maps.
+/// Pinning a place to a list or to a single item, on Apple Maps.
 ///
 /// This is the biggest visual upgrade over the Flutter app, which rendered raw
 /// OpenStreetMap tiles and searched Nominatim. Here the map is the real thing:
@@ -12,8 +12,78 @@ import CoreLocation
 ///
 /// Location permission is requested only when the user taps "Use my location"
 /// or saves a place — never on open, because browsing the map needs no access.
+
+/// What a pin is being attached to.
+///
+/// The picker was written for lists, but the API has always accepted a location
+/// on an individual item too — `PATCH /api/todos/{listId}/items/{todoId}/location`
+/// has existed since before either client shipped and neither ever called it.
+/// Everything on this screen is identical for both; only the four lines that
+/// read and write the location differ, which is what this enum isolates.
+enum LocationTarget {
+    case list(TodoList)
+    /// One item, and the list it belongs to — the endpoint needs both ids.
+    case item(listId: String, todo: Todo)
+
+    var listId: String {
+        switch self {
+        case .list(let list): list.id
+        case .item(let listId, _): listId
+        }
+    }
+
+    /// What the screen is about, shown under the title so a per-item reminder
+    /// cannot be mistaken for one covering the whole list.
+    var subject: String {
+        switch self {
+        case .list(let list): list.label
+        case .item(_, let todo): todo.title
+        }
+    }
+
+    var hasLocation: Bool {
+        switch self {
+        case .list(let list): list.hasLocation
+        case .item(_, let todo): todo.hasLocation
+        }
+    }
+
+    var coordinate: CLLocationCoordinate2D? {
+        let lat: Double?
+        let lng: Double?
+        switch self {
+        case .list(let list): (lat, lng) = (list.locationLat, list.locationLng)
+        case .item(_, let todo): (lat, lng) = (todo.locationLat, todo.locationLng)
+        }
+        guard let lat, let lng else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+
+    var radius: Double? {
+        switch self {
+        case .list(let list): list.locationRadius
+        case .item(_, let todo): todo.locationRadius
+        }
+    }
+
+    var locationName: String? {
+        switch self {
+        case .list(let list): list.locationName
+        case .item(_, let todo): todo.locationName
+        }
+    }
+
+    var trigger: GeofenceTrigger {
+        switch self {
+        case .list(let list): list.trigger
+        case .item(_, let todo): todo.trigger
+        }
+    }
+}
+
+/// The map screen itself. See ``LocationTarget`` for what it can pin.
 struct LocationPickerView: View {
-    let list: TodoList
+    let target: LocationTarget
 
     @Environment(AppStore.self) private var store
     @Environment(LocationService.self) private var location
@@ -42,20 +112,25 @@ struct LocationPickerView: View {
     /// matter, and iOS geofences below ~100 m are unreliable anyway.
     private static let radiusOptions: [Double] = [100, 200, 500, 1000, 2000]
 
-    init(list: TodoList) {
-        self.list = list
-        if let lat = list.locationLat, let lng = list.locationLng {
-            let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    init(list: TodoList) { self.init(target: .list(list)) }
+
+    /// Pins one item rather than the whole list.
+    init(listId: String, todo: Todo) { self.init(target: .item(listId: listId, todo: todo)) }
+
+    init(target: LocationTarget) {
+        self.target = target
+        if let coordinate = target.coordinate {
+            let span = (target.radius ?? 200) * 6
             _pin = State(initialValue: coordinate)
             _camera = State(initialValue: .region(MKCoordinateRegion(
                 center: coordinate,
-                latitudinalMeters: (list.locationRadius ?? 200) * 6,
-                longitudinalMeters: (list.locationRadius ?? 200) * 6
+                latitudinalMeters: span,
+                longitudinalMeters: span
             )))
         }
-        _placeName = State(initialValue: list.locationName ?? "")
-        _radius = State(initialValue: list.locationRadius ?? 200)
-        _trigger = State(initialValue: list.trigger)
+        _placeName = State(initialValue: target.locationName ?? "")
+        _radius = State(initialValue: target.radius ?? 200)
+        _trigger = State(initialValue: target.trigger)
     }
 
     var body: some View {
@@ -65,17 +140,18 @@ struct LocationPickerView: View {
                 searchOverlay
             }
             .safeAreaInset(edge: .bottom) { controls }
-            .navigationTitle("Location reminder")
+            .navigationTitle("Remind me at a place")
+            .navigationSubtitle(target.subject)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                if list.hasLocation {
+                if target.hasLocation {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Remove", role: .destructive) {
                             Task {
-                                await store.clearListLocation(listId: list.id)
+                                await clear()
                                 dismiss()
                             }
                         }
@@ -268,7 +344,7 @@ struct LocationPickerView: View {
                 radiusPicker
 
                 PrimaryButton(
-                    title: list.hasLocation ? "Update reminder" : "Save reminder",
+                    title: target.hasLocation ? "Update reminder" : "Save reminder",
                     icon: "mappin.and.ellipse",
                     isLoading: isSaving
                 ) {
@@ -450,6 +526,35 @@ struct LocationPickerView: View {
         }
     }
 
+    /// Writes the pin. The endpoints differ by one path segment; everything
+    /// else about this screen is identical for a list and an item.
+    private func commit(pin: CLLocationCoordinate2D) async throws(APIError) {
+        let name = placeName.trimmingCharacters(in: .whitespaces)
+        switch target {
+        case .list(let list):
+            try await store.setListLocation(
+                listId: list.id, name: name,
+                latitude: pin.latitude, longitude: pin.longitude,
+                radius: radius, trigger: trigger
+            )
+        case .item(let listId, let todo):
+            try await store.setItemLocation(
+                listId: listId, todoId: todo.id, name: name,
+                latitude: pin.latitude, longitude: pin.longitude,
+                radius: radius, trigger: trigger
+            )
+        }
+    }
+
+    private func clear() async {
+        switch target {
+        case .list(let list):
+            await store.clearListLocation(listId: list.id)
+        case .item(let listId, let todo):
+            await store.clearItemLocation(listId: listId, todoId: todo.id)
+        }
+    }
+
     private func save() {
         guard let pin else { return }
         isSaving = true
@@ -458,14 +563,7 @@ struct LocationPickerView: View {
         Task {
             defer { isSaving = false }
             do {
-                try await store.setListLocation(
-                    listId: list.id,
-                    name: placeName.trimmingCharacters(in: .whitespaces),
-                    latitude: pin.latitude,
-                    longitude: pin.longitude,
-                    radius: radius,
-                    trigger: trigger
-                )
+                try await commit(pin: pin)
                 Haptics.success()
 
                 // Now that a reminder exists, ask for the permission that makes

@@ -79,14 +79,35 @@ final class ThemeStore {
             }
         }
 
-        /// Applied via `dynamicTypeSize(...partial range)` so the user's own
-        /// accessibility sizes are never capped away.
-        var scale: CGFloat {
+        /// How far to shift the device's own Dynamic Type setting.
+        ///
+        /// A *shift*, not an absolute size. Setting `dynamicTypeSize` outright
+        /// would override the user's system choice — which is the opposite of
+        /// what the footer under this control promises, and would shrink text
+        /// for someone who had deliberately made it large everywhere.
+        var step: Int {
             switch self {
-            case .compact: 0.92
-            case .standard: 1.0
-            case .large: 1.14
+            case .compact: -1
+            case .standard: 0
+            case .large: 1
             }
+        }
+
+        /// Applies the shift to whatever the device is currently set to.
+        ///
+        /// Someone already at an accessibility size is never dropped out of that
+        /// range by picking Compact — the point of the control is to nudge, and
+        /// quietly undoing an accessibility setting is not a nudge.
+        func applied(to size: DynamicTypeSize) -> DynamicTypeSize {
+            guard step != 0 else { return size }
+            let all = DynamicTypeSize.allCases
+            guard let index = all.firstIndex(of: size) else { return size }
+
+            let floorIndex = size.isAccessibilitySize
+                ? (all.firstIndex(of: .accessibility1) ?? 0)
+                : 0
+            let target = min(max(index + step, floorIndex), all.count - 1)
+            return all[target]
         }
     }
 
@@ -110,25 +131,20 @@ final class ThemeStore {
 }
 
 /// Applies the user's appearance choices to a view tree.
+///
+/// The text-size shift reads `\.dynamicTypeSize` from *above* this modifier —
+/// the device's own setting — and writes the adjusted value below it. That is
+/// what makes the in-app control a nudge on top of the system preference rather
+/// than a replacement for it.
 struct ThemedContainer: ViewModifier {
     @Environment(ThemeStore.self) private var theme
+    @Environment(\.dynamicTypeSize) private var systemTextSize
 
     func body(content: Content) -> some View {
         content
             .tint(theme.accent.color)
             .preferredColorScheme(theme.appearance.colorScheme)
-            .environment(\.textSizeScale, theme.textSize.scale)
-    }
-}
-
-private struct TextSizeScaleKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 1.0
-}
-
-extension EnvironmentValues {
-    var textSizeScale: CGFloat {
-        get { self[TextSizeScaleKey.self] }
-        set { self[TextSizeScaleKey.self] = newValue }
+            .dynamicTypeSize(theme.textSize.applied(to: systemTextSize))
     }
 }
 

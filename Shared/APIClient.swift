@@ -50,7 +50,7 @@ actor APIClient {
     static var baseURL: URL {
         if useLocalServer, let url = URL(string: localServer) { return url }
         #if DEBUG
-        return URL(string: "https://twodos-api-staging-container.azurewebsites.net")! // TEMPX
+        return URL(string: "https://twodos.app")!
         #else
         return URL(string: "https://twodos.app")!
         #endif
@@ -562,6 +562,38 @@ extension APIClient {
     func fireLocationTrigger(listId: String, event: GeofenceTrigger) async throws(APIError) -> Bool {
         try await performVoid("POST", "/api/todos/\(listId)/location-trigger",
                               body: ["event": event.rawValue])
+    }
+
+    // MARK: - Item location
+    //
+    // Same request shape as the list-level pair above, one path segment deeper.
+    // The endpoint has existed since before either client shipped; nothing has
+    // ever called it.
+
+    func setItemLocation(
+        listId: String,
+        todoId: String,
+        name: String?,
+        latitude: Double,
+        longitude: Double,
+        radius: Double,
+        trigger: GeofenceTrigger
+    ) async throws(APIError) -> Bool {
+        var body: [String: Any?] = [
+            "locationLat": latitude,
+            "locationLng": longitude,
+            "locationRadius": radius,
+            "locationTrigger": trigger.rawValue
+        ]
+        if let name, !name.isEmpty { body["locationName"] = name }
+        return try await performVoid("PATCH", "/api/todos/\(listId)/items/\(todoId)/location", body: body)
+    }
+
+    func clearItemLocation(listId: String, todoId: String) async throws(APIError) -> Bool {
+        try await performVoid("PATCH", "/api/todos/\(listId)/items/\(todoId)/location",
+                              body: ["locationLat": nil, "locationLng": nil,
+                                     "locationRadius": nil, "locationTrigger": nil,
+                                     "locationName": nil])
     }
 }
 
