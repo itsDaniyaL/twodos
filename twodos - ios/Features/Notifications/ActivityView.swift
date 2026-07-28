@@ -63,7 +63,7 @@ struct ActivityView: View {
                                 }
                             }
                         } header: {
-                            SectionLabel(title: group.key)
+                            SectionLabel(title: LocalizedStringKey(group.key))
                                 .padding(.vertical, 6)
                                 .background(.bar.opacity(0.001))
                         }
@@ -95,10 +95,13 @@ struct ActivityView: View {
 
         for notification in sorted {
             let key: String
+            // Localised here rather than at the label, because the same string
+            // is the bucket key — translating it twice would split one day into
+            // two headings.
             if calendar.isDateInToday(notification.createdAt) {
-                key = "Today"
+                key = String(localized: "Today")
             } else if calendar.isDateInYesterday(notification.createdAt) {
-                key = "Yesterday"
+                key = String(localized: "Yesterday")
             } else {
                 key = notification.createdAt.formatted(.dateTime.day().month(.wide).year())
             }

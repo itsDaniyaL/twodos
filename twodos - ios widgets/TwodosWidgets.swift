@@ -1,11 +1,14 @@
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 @main
 struct TwodosWidgets: WidgetBundle {
     var body: some Widget {
         UpNextWidget()
         StatusWidget()
+        PlaceVisitLiveActivity()
+        OutstandingControl()
     }
 }
 
@@ -112,12 +115,29 @@ struct UpNextWidgetView: View {
                 Divider()
 
                 ForEach(snapshot.upNext.prefix(limit)) { todo in
-                    // Medium and large are the only families where a tap can be
-                    // aimed, so each row opens its own list. `widgetURL` on the
-                    // container would make the whole thing one target and send
-                    // every tap to the same place.
-                    Link(destination: DeepLink.list(id: todo.listId).url) {
-                        TodoRow(todo: todo, now: now)
+                    HStack(spacing: 10) {
+                        // Ticking off without opening the app — the point of an
+                        // interactive widget. Runs in this extension, which can
+                        // reach the API while the access token is fresh and
+                        // queues the tap when it is not.
+                        Button(intent: ToggleTodoIntent(
+                            listId: todo.listId,
+                            todoId: todo.id,
+                            done: true
+                        )) {
+                            Image(systemName: "circle")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Mark \(todo.title) as done")
+
+                        // The rest of the row still opens its own list. Medium
+                        // and large are the only families where a tap can be
+                        // aimed at a particular row.
+                        Link(destination: DeepLink.list(id: todo.listId).url) {
+                            TodoRow(todo: todo, now: now)
+                        }
                     }
                 }
 

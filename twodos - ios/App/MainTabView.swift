@@ -14,8 +14,10 @@ struct MainTabView: View {
     @State private var intentNavigation = IntentNavigation.shared
 
     @State private var selection: Tabs = .lists
-    /// Bumped to pop a tab's navigation stack when its tab is re-tapped.
-    @State private var listsPath = NavigationPath()
+    /// A typed array rather than `NavigationPath`, because on iPad the same
+    /// value has to drive a split view's selection — and `NavigationPath` cannot
+    /// be read back, only appended to.
+    @State private var listsPath: [ListRoute] = []
 
     enum Tabs: Hashable {
         case lists, alarms, activity, profile, search
@@ -51,6 +53,10 @@ struct MainTabView: View {
         // iOS 26: the tab bar shrinks out of the way as content scrolls up,
         // giving the glass cards the full height of the display.
         .tabBarMinimizeBehavior(.onScrollDown)
+        // On iPad the same five destinations become a sidebar, which is what
+        // makes the window feel like a tablet app rather than a stretched
+        // phone one. On iPhone it stays a tab bar.
+        .tabViewStyle(.sidebarAdaptable)
         .overlay(alignment: .top) { globalBanner }
         .overlay(alignment: .bottom) { undoBanner }
         // "Open my shopping list" may have run before this view existed, so the
@@ -67,8 +73,7 @@ struct MainTabView: View {
             // A notification tap, widget tap, or Shortcut asked for a list.
             guard let listId = store.pendingListToOpen else { return }
             selection = .lists
-            listsPath = NavigationPath()
-            listsPath.append(ListRoute.detail(listId))
+            listsPath = [.detail(listId)]
             store.pendingListToOpen = nil
         }
     }

@@ -80,6 +80,36 @@ struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// loaded. The two look identical in a widget and mean opposite things.
     var isAllClear: Bool { isSignedIn && openCount == 0 }
 
+    /// The snapshot as it would look with one item ticked off.
+    ///
+    /// Pure, and separate from the intent that calls it, because the counts are
+    /// the easy part to get wrong: a ticked item has to leave `upNext`, drop out
+    /// of `openCount`, *and* stop being counted as overdue or due-today, or the
+    /// headline number contradicts the list printed underneath it.
+    func completing(todoId: String, listId: String, now: Date = .now) -> WidgetSnapshot {
+        let removed = upNext.filter { $0.id == todoId }
+        guard !removed.isEmpty else { return self }
+
+        var copy = self
+        copy.upNext.removeAll { $0.id == todoId }
+        copy.openCount = max(0, openCount - removed.count)
+
+        for todo in removed {
+            guard let due = todo.dueAt else { continue }
+            if due < now {
+                copy.overdueCount = max(0, copy.overdueCount - 1)
+            } else if Calendar.current.isDate(due, inSameDayAs: now) {
+                copy.dueTodayCount = max(0, copy.dueTodayCount - 1)
+            }
+        }
+
+        if let index = copy.lists.firstIndex(where: { $0.id == listId }) {
+            copy.lists[index].openCount = max(0, copy.lists[index].openCount - removed.count)
+        }
+        copy.listCount = copy.lists.count { $0.openCount > 0 }
+        return copy
+    }
+
     /// Old enough that presenting it as current would mislead. A widget whose
     /// app has not run for half a day is showing history.
     func isStale(asOf now: Date = .now) -> Bool {

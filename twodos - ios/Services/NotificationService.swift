@@ -269,21 +269,6 @@ final class NotificationService: NSObject {
     static func geofenceID(listId: String) -> String { "geofence.\(listId)" }
 }
 
-/// The kind of notification, which decides its category and therefore the
-/// actions offered on long-press.
-enum NotificationKind: Sendable {
-    case deadline, alarm, geofence, social
-
-    var identifier: String {
-        switch self {
-        case .deadline: "TWODOS_DEADLINE"
-        case .alarm: "TWODOS_ALARM"
-        case .geofence: "TWODOS_GEOFENCE"
-        case .social: "TWODOS_SOCIAL"
-        }
-    }
-}
-
 // MARK: - Delegate
 
 extension NotificationService: UNUserNotificationCenterDelegate {

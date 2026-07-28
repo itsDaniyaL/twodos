@@ -86,7 +86,7 @@ struct PartnersView: View {
         }
     }
 
-    private func section(title: String, partners: [Partner], isBlocked: Bool) -> some View {
+    private func section(title: LocalizedStringKey, partners: [Partner], isBlocked: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(title: title, count: partners.count)
             ForEach(partners) { partner in

@@ -5,6 +5,16 @@ import SwiftUI
 /// Deadlines are the app's most-read piece of text, so they are written the way
 /// a person would say them — "in 20 minutes", "Tomorrow, 09:00", "3 days
 /// overdue" — rather than a bare timestamp the reader has to do arithmetic on.
+///
+/// ## Why every string here goes through `String(localized:)`
+/// These are built at runtime and handed to `Text` as `String`, not as
+/// `LocalizedStringKey` — so unlike a literal in a view, nothing extracts them
+/// and nothing would ever translate them. The app's most-read text would have
+/// been the one part guaranteed to stay English.
+///
+/// Counts use the `^[...](inflect: true)` form rather than a hand-written
+/// `s`-or-nothing. English happens to pluralise by suffix; most languages do
+/// not, and the ternary version cannot express what they need.
 enum Format {
 
     // MARK: - Deadlines
@@ -16,23 +26,35 @@ enum Format {
 
         if interval < 0 {
             let overdue = -interval
-            if overdue < 60 { return "Just now" }
-            if overdue < 3600 { return "\(Int(overdue / 60)) min overdue" }
-            if calendar.isDateInToday(date) { return "Overdue · \(time(date))" }
-            if calendar.isDateInYesterday(date) { return "Overdue since yesterday" }
+            if overdue < 60 { return String(localized: "Just now") }
+            if overdue < 3600 {
+                return String(localized: "\(Int(overdue / 60)) min overdue")
+            }
+            if calendar.isDateInToday(date) {
+                return String(localized: "Overdue · \(time(date))")
+            }
+            if calendar.isDateInYesterday(date) {
+                return String(localized: "Overdue since yesterday")
+            }
             let days = calendar.dateComponents([.day], from: date, to: reference).day ?? 0
-            if days < 30 { return "\(days) day\(days == 1 ? "" : "s") overdue" }
-            return "Overdue · \(shortDate(date))"
+            if days < 30 {
+                return String(localized: "^[\(days) day](inflect: true) overdue")
+            }
+            return String(localized: "Overdue · \(shortDate(date))")
         }
 
-        if interval < 60 { return "Due now" }
-        if interval < 3600 { return "In \(Int(interval / 60)) min" }
-        if calendar.isDateInToday(date) { return "Today, \(time(date))" }
-        if calendar.isDateInTomorrow(date) { return "Tomorrow, \(time(date))" }
+        if interval < 60 { return String(localized: "Due now") }
+        if interval < 3600 { return String(localized: "In \(Int(interval / 60)) min") }
+        if calendar.isDateInToday(date) {
+            return String(localized: "Today, \(time(date))")
+        }
+        if calendar.isDateInTomorrow(date) {
+            return String(localized: "Tomorrow, \(time(date))")
+        }
 
         let days = calendar.dateComponents([.day], from: reference, to: date).day ?? 0
-        if days < 7 { return "\(weekday(date)), \(time(date))" }
-        return "\(shortDate(date)), \(time(date))"
+        if days < 7 { return String(localized: "\(weekday(date)), \(time(date))") }
+        return String(localized: "\(shortDate(date)), \(time(date))")
     }
 
     /// The colour a deadline should be drawn in. Overdue is the only state that
@@ -75,9 +97,9 @@ enum Format {
 
     /// Presence text for a partner.
     static func lastSeen(_ date: Date?) -> String {
-        guard let date else { return "Offline" }
-        if Date.now.timeIntervalSince(date) < 120 { return "Just now" }
-        return "Last seen \(relative(date))"
+        guard let date else { return String(localized: "Offline") }
+        if Date.now.timeIntervalSince(date) < 120 { return String(localized: "Just now") }
+        return String(localized: "Last seen \(relative(date))")
     }
 
     // MARK: - Distances
@@ -95,15 +117,15 @@ enum Format {
 
     /// "3 of 8 done", or "Empty" — never "0/0".
     static func progress(done: Int, total: Int) -> String {
-        if total == 0 { return "No items yet" }
-        if done == total { return "All \(total) done" }
-        return "\(done) of \(total) done"
+        if total == 0 { return String(localized: "No items yet") }
+        if done == total { return String(localized: "All \(total) done") }
+        return String(localized: "\(done) of \(total) done")
     }
 
     /// A spoken-form progress string for VoiceOver, which should not have to
     /// interpret a slash.
     static func progressAccessible(done: Int, total: Int) -> String {
-        if total == 0 { return "Empty list" }
-        return "\(done) of \(total) items completed"
+        if total == 0 { return String(localized: "Empty list") }
+        return String(localized: "\(done) of ^[\(total) item](inflect: true) completed")
     }
 }

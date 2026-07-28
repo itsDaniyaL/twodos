@@ -19,6 +19,7 @@ final class AppStore {
     private let notifications = NotificationService.shared
     private let location = LocationService.shared
     private let watch = PhoneConnectivityService.shared
+    private let liveActivity = LiveActivityService.shared
 
     // MARK: - Session
 
@@ -274,7 +275,23 @@ final class AppStore {
                 partnerNames: partnerNames
             )
         )
+        if phase == .signedIn {
+            SpotlightIndexer.shared.reindex(lists)
+            // Ticking something off at the shop should be visible on the Lock
+            // Screen immediately, not at the next arrival.
+            if liveActivity.isRunning, let list = lists.first(where: { $0.id == liveActivityListId }) {
+                liveActivity.update(list: list)
+            }
+        } else {
+            Task { await liveActivity.end() }
+            // A signed-out phone must not surface the previous user's tasks in
+            // system search.
+            SpotlightIndexer.shared.clear()
+        }
     }
+
+    /// The list behind a running Live Activity, if there is one.
+    private var liveActivityListId: String? { liveActivity.currentListId }
 
     /// partnerId → display name, for the watch payload. The watch has no
     /// partner directory, so names are resolved here.
@@ -346,7 +363,69 @@ final class AppStore {
         await notifications.refreshAuthorization()
         guard phase == .signedIn else { return }
         if !isSocketConnected { await connectSocket() }
+        // Before the refresh, so a replayed tick is not immediately overwritten
+        // by the server's older view of that item.
+        await replayPendingMutations()
         await refreshAll(silently: true)
+    }
+
+    /// Sends everything that could not be sent when it happened.
+    ///
+    /// Two sources feed this queue: ticks made on the Home Screen while the
+    /// widget's access token had lapsed, and any write the app itself made while
+    /// offline. Both are replayed here, in the order the user made them.
+    ///
+    /// Failures go back on the queue rather than being dropped. The user watched
+    /// these changes happen on screen; silently losing them is worse than trying
+    /// again later.
+    private func replayPendingMutations() async {
+        let pending = PendingMutationLog.drain()
+        guard !pending.isEmpty else { return }
+
+        logger.info("Replaying \(pending.count) offline change(s).")
+        var failed: [PendingMutation] = []
+
+        for mutation in pending {
+            do {
+                try await send(mutation)
+            } catch APIError.offline {
+                failed.append(mutation)
+            } catch APIError.server {
+                // The list or item is gone — deleted on another device. There is
+                // nothing left to apply, and re-queueing would retry forever.
+                continue
+            } catch {
+                logger.warning("Dropping unreplayable change: \(error.localizedDescription)")
+            }
+        }
+
+        PendingMutationLog.requeue(failed)
+    }
+
+    private func send(_ mutation: PendingMutation) async throws(APIError) {
+        switch mutation.kind {
+        case .addTodo(let listId, _, let title):
+            _ = try await api.createTodo(listId: listId, title: title)
+        case .setDone(let listId, let todoId, let done):
+            _ = try await api.setTodoDone(listId: listId, todoId: todoId, done: done)
+        case .renameTodo(let listId, let todoId, let title):
+            _ = try await api.setTodoTitle(listId: listId, todoId: todoId, title: title)
+        case .deleteTodo(let listId, let todoId):
+            _ = try await api.deleteTodo(listId: listId, todoId: todoId)
+        }
+    }
+
+    /// Records a change that could not be sent, instead of undoing it.
+    ///
+    /// Rolling back is the right answer to a *rejected* request and the wrong
+    /// one to a tunnel — a user ticking things off underground should not watch
+    /// their work undo itself one row at a time.
+    /// Takes `any Error` rather than `APIError` because the deletion paths run
+    /// inside untyped closures; the check is the same either way.
+    private func queueIfOffline(_ error: any Error, _ kind: PendingMutation.Kind) -> Bool {
+        guard case .offline = error as? APIError else { return false }
+        PendingMutationLog.enqueue(PendingMutation(kind: kind))
+        return true
     }
 
     private func handleSessionExpiry() {
@@ -399,6 +478,9 @@ final class AppStore {
     private func signOutLocally() async {
         // Before the session goes: a held deletion still needs a valid token.
         await commitPendingDeletion()
+        // Whatever is still queued belongs to the session that is ending. Left
+        // in place it would replay against whoever signs in next.
+        PendingMutationLog.clear()
         await SocketClient.shared.disconnect()
         await location.removeAllGeofences()
         notifications.cancelAll()
@@ -773,6 +855,14 @@ final class AppStore {
             _ = try await api.createTodo(listId: listId, title: title)
             await refreshList(id: listId)
         } catch {
+            // Offline keeps the row and queues the write; anything else is a
+            // real rejection and the row goes.
+            guard !queueIfOffline(error, .addTodo(
+                listId: listId, localId: placeholder.id, title: title
+            )) else {
+                syncExternalSurfaces()
+                return
+            }
             lists[index].todos.removeAll { $0.id == placeholder.id }
             report(error, whileDoing: "adding the item")
         }
@@ -795,6 +885,12 @@ final class AppStore {
             _ = try await api.setTodoDone(listId: listId, todoId: todoId, done: done)
             await refreshList(id: listId)
         } catch {
+            guard !queueIfOffline(error, .setDone(
+                listId: listId, todoId: todoId, done: done
+            )) else {
+                syncExternalSurfaces()
+                return
+            }
             lists[listIndex].todos[todoIndex] = previous
             report(error, whileDoing: "updating the item")
         }
@@ -811,6 +907,12 @@ final class AppStore {
         do {
             _ = try await api.setTodoTitle(listId: listId, todoId: todoId, title: title)
         } catch {
+            guard !queueIfOffline(error, .renameTodo(
+                listId: listId, todoId: todoId, title: title
+            )) else {
+                syncExternalSurfaces()
+                return
+            }
             lists[listIndex].todos[todoIndex] = previous
             report(error, whileDoing: "renaming the item")
         }
@@ -861,6 +963,12 @@ final class AppStore {
                     // A pinned item losing its pin can empty a whole place.
                     if removed.hasLocation { self.location.invalidatePlan() }
                 } catch {
+                    guard !self.queueIfOffline(error, .deleteTodo(
+                        listId: listId, todoId: todoId
+                    )) else {
+                        self.syncExternalSurfaces()
+                        return
+                    }
                     if let index = self.lists.firstIndex(where: { $0.id == listId }) {
                         let items = self.lists[index].todos
                         self.lists[index].todos.insert(removed, at: min(todoIndex, items.count))
@@ -1006,6 +1114,21 @@ final class AppStore {
             listId: crossing.primaryListId,
             sound: NotificationSettingsStore.shared.playSound
         )
+
+        // Arriving somewhere with things to do there is exactly when a
+        // glanceable, unlockable list earns its place on the screen. Leaving
+        // takes it away again.
+        if crossing.trigger == .arrive {
+            if let list = list(id: crossing.primaryListId) {
+                liveActivity.begin(
+                    placeId: crossing.placeId,
+                    placeName: place,
+                    list: list
+                )
+            }
+        } else {
+            await liveActivity.endIfAt(placeId: crossing.placeId)
+        }
 
         // Tell the server so partners are notified too — once per shared list,
         // and not at all when nothing here is shared. A solo reminder is the

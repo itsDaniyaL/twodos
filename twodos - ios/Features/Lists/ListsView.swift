@@ -7,14 +7,56 @@ enum ListRoute: Hashable {
 /// The home screen: every list, sorted the way the user asked for, with
 /// pending invites surfaced above them.
 struct ListsView: View {
-    @Binding var path: NavigationPath
+    @Binding var path: [ListRoute]
     @Environment(AppStore.self) private var store
+    /// iPad and a landscape iPhone Pro Max get a sidebar; everything else keeps
+    /// the stack. Read rather than assumed, so a Slide Over window — which is
+    /// compact on an iPad — gets the phone layout it actually has room for.
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     @State private var showingCreateSheet = false
     @State private var showingSortMenu = false
     @Namespace private var cardNamespace
 
     var body: some View {
+        if sizeClass == .regular {
+            splitLayout
+        } else {
+            stackLayout
+        }
+    }
+
+    /// iPad: lists on the left, the open list beside them.
+    ///
+    /// This is the whole reason to treat a tablet differently. A shared list is
+    /// something two people edit while talking about it, and the tablet is the
+    /// device that is usually on the table between them — losing sight of every
+    /// other list the moment you open one is exactly the wrong trade there.
+    private var splitLayout: some View {
+        NavigationSplitView {
+            ZStack {
+                ScreenBackground()
+                content
+            }
+            .navigationTitle("Lists")
+            .toolbar { toolbar }
+        } detail: {
+            if case .detail(let id) = path.last {
+                ListDetailView(listId: id)
+            } else {
+                ZStack {
+                    ScreenBackground()
+                    EmptyStateView(
+                        icon: "sidebar.left",
+                        title: "Pick a list",
+                        message: "Choose one on the left, or make a new one."
+                    )
+                }
+            }
+        }
+    }
+
+    private var stackLayout: some View {
         NavigationStack(path: $path) {
             ZStack {
                 ScreenBackground()
@@ -77,7 +119,7 @@ struct ListsView: View {
                         matchedID: list.id,
                         namespace: cardNamespace
                     ) {
-                        path.append(ListRoute.detail(list.id))
+                        open(list.id)
                     }
                     .transition(.rowInsertion)
                 }
@@ -151,7 +193,7 @@ struct ListsView: View {
                         matchedID: list.id,
                         namespace: cardNamespace
                     ) {
-                        path.append(ListRoute.detail(list.id))
+                        open(list.id)
                     }
                     .transition(.rowInsertion)
                 }
@@ -187,6 +229,12 @@ struct ListsView: View {
         }
     }
 
+    /// Opening a list means the same thing in both layouts: it becomes the last
+    /// thing on the path. The stack pushes it; the split view shows it.
+    private func open(_ listId: String) {
+        path = [.detail(listId)]
+    }
+
     // MARK: - Data
 
     private var isCompletelyEmpty: Bool {
@@ -200,7 +248,7 @@ struct ListsView: View {
 // MARK: - Section label
 
 struct SectionLabel: View {
-    var title: String
+    var title: LocalizedStringKey
     var count: Int?
     var icon: String?
 

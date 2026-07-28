@@ -93,7 +93,7 @@ struct AlarmsView: View {
         }
     }
 
-    private func section(title: String, alarms: [Alarm], isPast: Bool) -> some View {
+    private func section(title: LocalizedStringKey, alarms: [Alarm], isPast: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(title: title, count: alarms.count)
             ForEach(alarms) { alarm in

@@ -1,0 +1,105 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Add to ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Add to ${applicationName}",
+              "Add an item to ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "Add to ${applicationName}",
+              "Add an item to ${applicationName}"
+            ]
+          }
+        },
+        "nl" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Add to ${applicationName}",
+              "Add an item to ${applicationName}"
+            ]
+          }
+        }
+      }
+    },
+    "Open a list in ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Open a list in ${applicationName}",
+              "Show my ${applicationName} list"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "Open a list in ${applicationName}",
+              "Show my ${applicationName} list"
+            ]
+          }
+        },
+        "nl" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Open a list in ${applicationName}",
+              "Show my ${applicationName} list"
+            ]
+          }
+        }
+      }
+    },
+    "What's outstanding in ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "What's outstanding in ${applicationName}",
+              "What's left in ${applicationName}",
+              "Check ${applicationName}"
+            ]
+          }
+        },
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "What's outstanding in ${applicationName}",
+              "What's left in ${applicationName}",
+              "Check ${applicationName}"
+            ]
+          }
+        },
+        "nl" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "What's outstanding in ${applicationName}",
+              "What's left in ${applicationName}",
+              "Check ${applicationName}"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.2"
+}

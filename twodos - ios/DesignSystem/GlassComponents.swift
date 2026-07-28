@@ -185,7 +185,10 @@ struct GlassDivider: View {
 /// press, with a subtle press-scale that makes the button feel like a physical
 /// key rather than a rectangle that changes colour.
 struct PrimaryButton: View {
-    var title: String
+    /// `LocalizedStringKey`, not `String`: a plain `String` parameter is
+    /// invisible to string extraction, so every literal passed here would have
+    /// stayed English no matter how many catalogs the project had.
+    var title: LocalizedStringKey
     var icon: String?
     var isLoading: Bool = false
     var role: ButtonRole?
@@ -224,7 +227,7 @@ struct PrimaryButton: View {
 
 /// The secondary action beside a ``PrimaryButton``.
 struct SecondaryButton: View {
-    var title: String
+    var title: LocalizedStringKey
     var icon: String?
     var action: () -> Void
 
@@ -293,9 +296,9 @@ struct SuggestionChip: View {
 /// an empty screen that only says "nothing here" leaves the user stuck.
 struct EmptyStateView: View {
     var icon: String
-    var title: String
-    var message: String
-    var actionTitle: String?
+    var title: LocalizedStringKey
+    var message: LocalizedStringKey
+    var actionTitle: LocalizedStringKey?
     var action: (() -> Void)?
 
     @State private var appeared = false
@@ -413,7 +416,7 @@ struct InlineBanner: View {
 /// A full-screen loading state. Uses a shaped, branded indicator rather than a
 /// bare spinner so cold launch does not look like a hang.
 struct LoadingView: View {
-    var message: String?
+    var message: LocalizedStringKey?
     @State private var pulse = false
 
     var body: some View {

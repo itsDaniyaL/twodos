@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreSpotlight
 
 @main
 struct TwodosApp: App {
@@ -25,6 +26,14 @@ struct TwodosApp: App {
                 .task {
                     Haptics.prepare()
                     await store.start()
+                }
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    // A tapped Spotlight result. Routed through the same
+                    // `DeepLink` channel as a widget tap so there is one way
+                    // into a list, not several kept behaving alike.
+                    guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String
+                    else { return }
+                    store.handle(deepLink: SpotlightIndexer.deepLink(forSearchableItemID: id))
                 }
                 .onOpenURL { url in
                     // A widget tap. The intent goes through the same

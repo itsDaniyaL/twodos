@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 
 @main
 struct TwodosWatchApp: App {
@@ -14,6 +15,19 @@ struct TwodosWatchApp: App {
                     store.handle(deepLink: DeepLink(url: url))
                 }
         }
+
+        // One scene per category the phone registers. watchOS routes a mirrored
+        // notification to whichever matches, and falls back to its own default
+        // look for anything unlisted — so a new category on the phone degrades
+        // to the system card rather than showing nothing.
+        WKNotificationScene(controller: WatchNotificationController.self,
+                            category: NotificationKind.deadline.identifier)
+        WKNotificationScene(controller: WatchNotificationController.self,
+                            category: NotificationKind.alarm.identifier)
+        WKNotificationScene(controller: WatchNotificationController.self,
+                            category: NotificationKind.geofence.identifier)
+        WKNotificationScene(controller: WatchNotificationController.self,
+                            category: NotificationKind.social.identifier)
     }
 }
 
