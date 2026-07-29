@@ -31,9 +31,13 @@ final class AppStore {
 
     private(set) var phase: Phase = .launching {
         didSet {
-            // Signing in is the moment a held deep link becomes actionable.
             guard phase == .signedIn, oldValue != .signedIn else { return }
+            // Signing in is the moment a held deep link becomes actionable.
             resumeDeferredDeepLink()
+            // …and the first moment a device token has an account to attach to.
+            // Runs on every sign-in, not only the first: APNs tokens rotate, and
+            // a stale one stops delivering without erroring.
+            PushRegistrationService.shared.refresh()
         }
     }
     private(set) var user: CurrentUser?
@@ -49,6 +53,14 @@ final class AppStore {
     private(set) var notificationFeed: [AppNotification] = []
     private(set) var blockedUserIds: Set<String> = []
     private(set) var socialLinks: [SocialLink] = []
+
+    /// The live challenge per list, keyed by list id.
+    ///
+    /// Held separately from `lists` because the scoreboard is computed
+    /// server-side and arrives on its own endpoint and its own socket event —
+    /// folding it into `TodoList` would mean a full list refresh every time
+    /// somebody ticked a box.
+    private(set) var challenges: [String: Challenge] = [:]
 
     private(set) var hasLoadedLists = false
     private(set) var isRefreshing = false
@@ -476,8 +488,12 @@ final class AppStore {
     }
 
     private func signOutLocally() async {
-        // Before the session goes: a held deletion still needs a valid token.
+        // Before the session goes: a held deletion still needs a valid token,
+        // and so does telling the server to stop pushing to this device. A
+        // shared phone that keeps ringing for whoever signed out is a privacy
+        // problem, not a bug.
         await commitPendingDeletion()
+        await PushRegistrationService.shared.unregister()
         // Whatever is still queued belongs to the session that is ending. Left
         // in place it would replay against whoever signs in next.
         PendingMutationLog.clear()
@@ -896,6 +912,33 @@ final class AppStore {
         }
     }
 
+    /// Takes a task on, hands it to the partner, or unclaims it.
+    ///
+    /// Symmetric by design — either person may assign to either person. The
+    /// server enforces only that the assignee is actually on the list; whatever
+    /// negotiation happens is the couple's business.
+    func setTodoAssignee(listId: String, todoId: String, assigneeId: String?) async {
+        guard let listIndex = lists.firstIndex(where: { $0.id == listId }),
+              let todoIndex = lists[listIndex].todos.firstIndex(where: { $0.id == todoId })
+        else { return }
+
+        let previous = lists[listIndex].todos[todoIndex]
+        lists[listIndex].todos[todoIndex].assigneeId = assigneeId
+        Haptics.selection()
+        syncExternalSurfaces()
+
+        do {
+            _ = try await api.setItemAssignee(listId: listId, todoId: todoId, assigneeId: assigneeId)
+        } catch {
+            // No offline queue entry here on purpose: an assignment is a
+            // statement to another person, and replaying a stale one hours later
+            // could contradict what they have since agreed between themselves.
+            lists[listIndex].todos[todoIndex] = previous
+            syncExternalSurfaces()
+            report(error, whileDoing: "changing who has this")
+        }
+    }
+
     func renameTodo(listId: String, todoId: String, title: String) async {
         guard let listIndex = lists.firstIndex(where: { $0.id == listId }),
               let todoIndex = lists[listIndex].todos.firstIndex(where: { $0.id == todoId })
@@ -1134,8 +1177,15 @@ final class AppStore {
         // and not at all when nothing here is shared. A solo reminder is the
         // common case and it stays entirely offline.
         guard crossing.notifiesPartner else { return }
-        for listId in Set(crossing.targets.filter(\.notifiesPartner).map(\.listId)) {
-            _ = try? await api.fireLocationTrigger(listId: listId, event: crossing.trigger)
+        // Grouped by list so each shared list is told once, carrying exactly the
+        // items that fired there. Without the ids the partner gets a bare
+        // arrival that could mean any pinned item on the list.
+        let shared = crossing.targets.filter(\.notifiesPartner)
+        for listId in Set(shared.map(\.listId)) {
+            let todoIds = shared.filter { $0.listId == listId }.compactMap(\.todoId)
+            _ = try? await api.fireLocationTrigger(
+                listId: listId, event: crossing.trigger, todoIds: todoIds
+            )
         }
     }
 
@@ -1154,6 +1204,63 @@ final class AppStore {
         return lists.count == 1
             ? "\(things) · \(targets[0].listLabel)"
             : "\(things) across \(lists.count) lists"
+    }
+
+    // MARK: - Challenges
+
+    func challenge(for listId: String) -> Challenge? { challenges[listId] }
+
+    /// Loads the live challenge for a list, if there is one.
+    func refreshChallenge(listId: String) async {
+        do {
+            let live = try await api.challenge(listId: listId)
+            if let live { challenges[listId] = live } else { challenges[listId] = nil }
+        } catch {
+            // A missing scoreboard is not worth a banner — the list itself is
+            // still perfectly usable without it.
+            logger.debug("refreshChallenge(\(listId, privacy: .public)) failed")
+        }
+    }
+
+    /// Puts a finished result away. Local only — there is nothing on the server
+    /// left to change.
+    func dismissChallenge(listId: String) {
+        challenges[listId] = nil
+    }
+
+    func startChallenge(listId: String, deadline: Date, todoIds: [String]) async throws(APIError) {
+        let created = try await api.createChallenge(listId: listId, deadline: deadline, todoIds: todoIds)
+        challenges[listId] = created
+        Haptics.success()
+        // The tasks now carry a challengeId, which the rows badge on.
+        await refreshList(id: listId)
+    }
+
+    func answerChallenge(listId: String, challengeId: String, accept: Bool) async {
+        do {
+            _ = accept
+                ? try await api.acceptChallenge(listId: listId, challengeId: challengeId)
+                : try await api.declineChallenge(listId: listId, challengeId: challengeId)
+            Haptics.success()
+            if accept {
+                await refreshChallenge(listId: listId)
+            } else if let live = challenges[listId] {
+                challenges[listId] = live.declined()
+                await refreshList(id: listId)
+            }
+        } catch {
+            report(error, whileDoing: accept ? "accepting the challenge" : "declining the challenge")
+        }
+    }
+
+    func cancelChallenge(listId: String, challengeId: String) async {
+        do {
+            _ = try await api.cancelChallenge(listId: listId, challengeId: challengeId)
+            challenges[listId] = nil
+            await refreshList(id: listId)
+        } catch {
+            report(error, whileDoing: "calling off the challenge")
+        }
     }
 
     // MARK: - Alarms
@@ -1317,6 +1424,44 @@ final class AppStore {
             // Skip echoes of our own writes — local state is already correct and
             // re-fetching would make the user's edit visibly flicker.
             guard actorId != currentUserId else { return }
+            Task { await refreshList(id: listId) }
+
+        case .itemAssigned(let listId, let todoId, let assigneeId, let actorId):
+            // Applied in place rather than re-fetched: the payload carries the
+            // new value, and a full list refresh to learn one field would make
+            // the row flicker for no reason.
+            guard actorId != currentUserId else { return }
+            if let listIndex = lists.firstIndex(where: { $0.id == listId }),
+               let todoIndex = lists[listIndex].todos.firstIndex(where: { $0.id == todoId }) {
+                lists[listIndex].todos[todoIndex].assigneeId = assigneeId
+                syncExternalSurfaces()
+            }
+
+        case .challengeChanged(let listId, _):
+            // Not skipped for our own actions: creating or accepting changes the
+            // status, and the local copy is a stale echo either way.
+            Task { await refreshChallenge(listId: listId) }
+
+        case .challengeDeclined(let listId, _):
+            // Left on screen saying so, rather than refetched into nothing.
+            if let live = challenges[listId] { challenges[listId] = live.declined() }
+
+        case .challengeScored(let listId, let scores, _):
+            // Applied in place. Re-fetching to learn two integers would make the
+            // scoreboard lag exactly when it is being watched.
+            if var live = challenges[listId] {
+                live = Challenge(from: live, scores: scores)
+                challenges[listId] = live
+            } else {
+                Task { await refreshChallenge(listId: listId) }
+            }
+
+        case .challengeEnded(let listId, let winnerId, let scores, let endReason, _):
+            // Kept on screen rather than cleared: seeing the result is the
+            // payoff, and it disappears on its own the next time the list loads.
+            if let live = challenges[listId] {
+                challenges[listId] = live.ended(winnerId: winnerId, scores: scores, endReason: endReason)
+            }
             Task { await refreshList(id: listId) }
 
         case .listArchived(_, _, let actorId), .inviteDeclined(_, let actorId):

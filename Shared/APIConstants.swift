@@ -7,6 +7,12 @@ import Foundation
 /// newer server build degrades to "unknown" instead of failing to decode the
 /// entire list.
 enum APIConstants {
+    enum ChallengeEndReason {
+        static let earlyFinish = "CHALLENGE::END::EARLY_FINISH"
+        static let deadline    = "CHALLENGE::END::DEADLINE"
+        static let cancelled   = "CHALLENGE::END::CANCELLED"
+    }
+
 
     enum InviteStatus {
         static let pending = "TODOS::INVITE_STATUS::PENDING"

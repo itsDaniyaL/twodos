@@ -25,6 +25,7 @@ struct ListOptionsSheet: View {
     @State private var showingColors = false
     @State private var choosingPriority = false
     @State private var confirmingDelete = false
+    @State private var showingChallenge = false
 
     private var list: TodoList? { store.list(id: listId) }
 
@@ -37,6 +38,7 @@ struct ListOptionsSheet: View {
                     ScrollView {
                         VStack(spacing: 22) {
                             settings(list)
+                            challengeRow(list)
                             deleteRow(list)
                         }
                         .padding(.horizontal, Metrics.gutter)
@@ -96,6 +98,7 @@ struct ListOptionsSheet: View {
                     LocationPickerView(list: list)
                 }
             }
+            .sheet(isPresented: $showingChallenge) { ChallengeSheet(listId: listId) }
             .sheet(isPresented: $showingColors) {
                 if let list {
                     ListColorSheet(
@@ -229,6 +232,54 @@ struct ListOptionsSheet: View {
                 )
             }
         }
+    }
+
+    /// Starting, or looking in on, a race through this list.
+    ///
+    /// Its own card rather than a row among the settings: a challenge is
+    /// something you *do* with the list, not a property of it, and burying it
+    /// between "Priority" and "Deadline" would read as one more toggle.
+    ///
+    /// Absent entirely on a list with nobody else on it. A race against yourself
+    /// is not a feature, and a row that explains why it is disabled is worse
+    /// than no row.
+    @ViewBuilder
+    private func challengeRow(_ list: TodoList) -> some View {
+        if !list.isEffectivelyPersonal(currentUserId: store.currentUserId) {
+            let live = store.challenge(for: listId)
+            let openCount = list.todos.filter { !$0.done }.count
+
+            GlassCard(tint: Brand.apricot) {
+                GlassRow(
+                    icon: "flag.checkered.2.crossed",
+                    iconTint: Brand.apricot,
+                    title: live == nil
+                        ? String(localized: "Start a challenge")
+                        : String(localized: "Challenge running"),
+                    subtitle: challengeSubtitle(live: live, openCount: openCount),
+                    showsChevron: live == nil && openCount > 0,
+                    action: live == nil && openCount > 0 ? {
+                        Haptics.medium()
+                        showingChallenge = true
+                    } : nil
+                )
+                .opacity(live == nil && openCount == 0 ? 0.5 : 1)
+            }
+        }
+    }
+
+    private func challengeSubtitle(live: Challenge?, openCount: Int) -> String {
+        guard let live else {
+            return openCount == 0
+                ? String(localized: "Add some unfinished items first")
+                : String(localized: "Race your partner to the deadline")
+        }
+        if live.status == .pending {
+            return live.createdBy == store.currentUserId
+                ? String(localized: "Waiting for them to accept")
+                : String(localized: "They've challenged you — answer it on the list")
+        }
+        return String(localized: "Ends \(Format.deadline(live.deadline)) · the score is at the top of the list")
     }
 
     private func deleteRow(_ list: TodoList) -> some View {

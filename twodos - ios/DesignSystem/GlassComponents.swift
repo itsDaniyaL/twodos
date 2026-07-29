@@ -274,7 +274,7 @@ struct MetaChip: View {
 
 /// A tappable suggestion chip, used for quick deadline presets.
 struct SuggestionChip: View {
-    var title: String
+    var title: LocalizedStringResource
     var isSelected: Bool = false
     var action: () -> Void
 

@@ -296,6 +296,11 @@ enum SocketEvent: Sendable {
     case inviteDeclined(listId: String, actorId: String?)
     case itemAdded(listId: String, actorId: String?)
     case itemUpdated(listId: String, actorId: String?)
+    case itemAssigned(listId: String, todoId: String, assigneeId: String?, actorId: String?)
+    case challengeChanged(listId: String, actorId: String?)
+    case challengeDeclined(listId: String, actorId: String?)
+    case challengeScored(listId: String, scores: [String: Int], actorId: String?)
+    case challengeEnded(listId: String, winnerId: String?, scores: [String: Int], endReason: String?, actorId: String?)
     case itemDeleted(listId: String, actorId: String?)
     case itemsCleared(listId: String, actorId: String?)
     case itemsReordered(listId: String, actorId: String?)
@@ -340,6 +345,45 @@ enum SocketEvent: Sendable {
         case "LIST::ITEM_ADDED":
             guard let listId else { return nil }
             self = .itemAdded(listId: listId, actorId: actorId)
+
+        case "CHALLENGE::CREATED", "CHALLENGE::ACCEPTED":
+            guard let listId else { return nil }
+            self = .challengeChanged(listId: listId, actorId: actorId)
+
+        case "CHALLENGE::DECLINED":
+            guard let listId else { return nil }
+            self = .challengeDeclined(listId: listId, actorId: actorId)
+
+        case "CHALLENGE::SCORED":
+            // The whole scoreboard travels with the event — a scoreboard that
+            // only moves on the next refresh is not a live scoreboard.
+            guard let listId else { return nil }
+            self = .challengeScored(
+                listId: listId,
+                scores: (body["scores"] as? [String: Int]) ?? [:],
+                actorId: actorId
+            )
+
+        case "CHALLENGE::ENDED":
+            guard let listId else { return nil }
+            self = .challengeEnded(
+                listId: listId,
+                winnerId: body["winnerId"] as? String,
+                scores: (body["scores"] as? [String: Int]) ?? [:],
+                endReason: body["endReason"] as? String,
+                actorId: actorId
+            )
+
+        case "LIST::ITEM_ASSIGNED":
+            // The new value travels with the event, so the row updates without
+            // a re-fetch. `assigneeId` is genuinely absent when unclaimed.
+            guard let listId else { return nil }
+            self = .itemAssigned(
+                listId: listId,
+                todoId: body["todoId"] as? String ?? "",
+                assigneeId: body["assigneeId"] as? String,
+                actorId: actorId
+            )
 
         case "LIST::ITEM_UPDATED":
             guard let listId else { return nil }

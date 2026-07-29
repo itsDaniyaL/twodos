@@ -17,6 +17,17 @@ import OSLog
 /// unauthorised. Concurrent callers await the same refresh task rather than
 /// each firing their own — the API revokes all sessions when it sees
 /// overlapping refreshes for one platform.
+/// Wraps a payload that may be `null` on an otherwise successful response.
+///
+/// Declared here rather than inside the method because Swift does not allow a
+/// generic type nested in a generic function.
+private struct Optionally<Value: Decodable>: Decodable {
+    let value: Value?
+    init(from decoder: Decoder) throws {
+        value = try? Value(from: decoder)
+    }
+}
+
 actor APIClient {
     static let shared = APIClient()
 
@@ -275,6 +286,21 @@ actor APIClient {
 
     /// Requests with no meaningful response body.
     @discardableResult
+    /// A request whose success may legitimately carry no payload.
+    ///
+    /// `perform` treats a missing `data` as a decoding failure, which is right
+    /// almost everywhere — but "this list has no challenge" is a real answer,
+    /// not a broken response.
+    private func performOptional<T: Decodable>(
+        _ method: String,
+        _ path: String,
+        body: [String: Any?]? = nil,
+        as type: T.Type
+    ) async throws(APIError) -> T? {
+        let wrapped: Optionally<T> = try await perform(method, path, body: body, as: Optionally<T>.self)
+        return wrapped.value
+    }
+
     private func performVoid(
         _ method: String,
         _ path: String,
@@ -559,9 +585,86 @@ extension APIClient {
                                      "locationName": nil])
     }
 
-    func fireLocationTrigger(listId: String, event: GeofenceTrigger) async throws(APIError) -> Bool {
-        try await performVoid("POST", "/api/todos/\(listId)/location-trigger",
-                              body: ["event": event.rawValue])
+    /// Tells the server a geofence fired, so the partner is notified too.
+    ///
+    /// `todoIds` names the pinned items this crossing is for. It is an array
+    /// because fences are keyed by place: arriving at one shop with four pinned
+    /// items is a single crossing, and four requests would be four notifications
+    /// for one walk through one door.
+    ///
+    /// Omitting it is the list-level crossing the API has always accepted.
+    func fireLocationTrigger(
+        listId: String,
+        event: GeofenceTrigger,
+        todoIds: [String] = []
+    ) async throws(APIError) -> Bool {
+        var body: [String: Any?] = ["event": event.rawValue]
+        if !todoIds.isEmpty { body["todoIds"] = todoIds }
+        return try await performVoid("POST", "/api/todos/\(listId)/location-trigger", body: body)
+    }
+
+    // MARK: - Challenges
+
+    /// The live challenge on a list, or nil when there is none.
+    ///
+    /// Fetched separately rather than read from the list payload because the
+    /// scoreboard is computed server-side and only this endpoint carries it.
+    func challenge(listId: String) async throws(APIError) -> Challenge? {
+        try await performOptional("GET", "/api/todos/\(listId)/challenge", as: Challenge.self)
+    }
+
+    /// Proposes a challenge. It stays pending until the partner accepts.
+    ///
+    /// An empty `todoIds` means every open task on the list.
+    func createChallenge(
+        listId: String,
+        deadline: Date,
+        todoIds: [String]
+    ) async throws(APIError) -> Challenge {
+        var body: [String: Any?] = ["deadline": ISO8601DateFormatter().string(from: deadline)]
+        if !todoIds.isEmpty { body["todoIds"] = todoIds }
+        return try await perform("POST", "/api/todos/\(listId)/challenge", body: body, as: Challenge.self)
+    }
+
+    func acceptChallenge(listId: String, challengeId: String) async throws(APIError) -> Bool {
+        try await performVoid("PUT", "/api/todos/\(listId)/challenge/\(challengeId)/accept")
+    }
+
+    func declineChallenge(listId: String, challengeId: String) async throws(APIError) -> Bool {
+        try await performVoid("PUT", "/api/todos/\(listId)/challenge/\(challengeId)/decline")
+    }
+
+    func cancelChallenge(listId: String, challengeId: String) async throws(APIError) -> Bool {
+        try await performVoid("DELETE", "/api/todos/\(listId)/challenge/\(challengeId)")
+    }
+
+    // MARK: - Push devices
+
+    /// Registers this device so notifications reach it when the app is closed.
+    ///
+    /// Called after permission is granted **and every time the system issues a
+    /// new token** — they rotate, and a stale one stops delivering silently.
+    ///
+    /// `bundleId` becomes the `apns-topic` header on Apple platforms, which is
+    /// why a phone build and a Mac build cannot share one registration.
+    func registerDevice(
+        platform: String,
+        token: String,
+        bundleId: String?
+    ) async throws(APIError) -> String? {
+        struct Registration: Decodable { let id: String }
+        var body: [String: Any?] = ["platform": platform, "token": token]
+        if let bundleId { body["bundleId"] = bundleId }
+        let result: Registration = try await perform(
+            "POST", "/api/v1/devices", body: body, as: Registration.self
+        )
+        return result.id
+    }
+
+    /// Stops notifications reaching this device — called on sign-out, so a
+    /// shared or handed-on phone does not keep ringing for the previous user.
+    func unregisterDevice(tokenId: String) async throws(APIError) -> Bool {
+        try await performVoid("DELETE", "/api/v1/devices/\(tokenId)")
     }
 
     // MARK: - Item location
@@ -587,6 +690,15 @@ extension APIClient {
         ]
         if let name, !name.isEmpty { body["locationName"] = name }
         return try await performVoid("PATCH", "/api/todos/\(listId)/items/\(todoId)/location", body: body)
+    }
+
+    /// Takes a task on, hands it to the other person, or unclaims it.
+    ///
+    /// Deliberately symmetric on the server: either member may assign to either
+    /// member. `nil` unclaims, and is a real state rather than a missing value.
+    func setItemAssignee(listId: String, todoId: String, assigneeId: String?) async throws(APIError) -> Bool {
+        try await performVoid("PATCH", "/api/todos/\(listId)/items/\(todoId)/assignee",
+                              body: ["assigneeId": assigneeId])
     }
 
     func clearItemLocation(listId: String, todoId: String) async throws(APIError) -> Bool {

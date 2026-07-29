@@ -24,6 +24,7 @@ struct ListDetailView: View {
     /// Owned here so swiping a second item closes the first.
     @State private var swipeCoordinator = SwipeCoordinator()
     @State private var deadlineTarget: DeadlineTarget?
+    @State private var showingChallenge = false
     @State private var typingTask: Task<Void, Never>?
     @FocusState private var addFieldFocused: Bool
 
@@ -58,6 +59,11 @@ struct ListDetailView: View {
         .refreshable { await store.refreshList(id: listId) }
         .sheet(isPresented: $showingOptions) { ListOptionsSheet(listId: listId) }
         .sheet(isPresented: $showingInfo) { ListInfoSheet(listId: listId) }
+        .sheet(isPresented: $showingChallenge) { ChallengeSheet(listId: listId) }
+        // Separate from the list's own load: the scoreboard has its own endpoint
+        // and its own socket event, so folding it in would mean refetching every
+        // item to learn two integers.
+        .task(id: listId) { await store.refreshChallenge(listId: listId) }
         .environment(\.swipeCoordinator, swipeCoordinator)
         .sheet(item: $locationTodo) { todo in
             LocationPickerView(listId: listId, todo: todo)
@@ -150,8 +156,28 @@ struct ListDetailView: View {
         // the top of it is just wrong.
         let showsDeadline = list.doBefore != nil && !list.isComplete
 
-        if showsDeadline || list.archived || geofenceIsCrippled {
+        let challenge = store.challenge(for: listId)
+
+        if showsDeadline || list.archived || geofenceIsCrippled || challenge != nil {
             VStack(spacing: 8) {
+                // Above the deadline banner: while a challenge is running it is
+                // the thing you opened the list to look at.
+                if let challenge {
+                    ChallengeScoreboard(
+                        challenge: challenge,
+                        me: store.currentUserId,
+                        myName: String(localized: "You"),
+                        theirName: collaborator?.displayName ?? String(localized: "Your partner"),
+                        theirId: list.partnerId == store.currentUserId ? nil : list.partnerId,
+                        onAccept: { answer(challenge, accept: true) },
+                        onDecline: { answer(challenge, accept: false) },
+                        onCancel: {
+                            Task { await store.cancelChallenge(listId: listId, challengeId: challenge.id) }
+                        },
+                        onDismiss: { store.dismissChallenge(listId: listId) }
+                    )
+                }
+
                 if showsDeadline, let deadline = list.doBefore {
                     DeadlineBanner(deadline: deadline) {
                         deadlineTarget = .list(currentDate: deadline, title: list.label)
@@ -235,11 +261,25 @@ struct ListDetailView: View {
                         )
                     },
                     onSetLocation: { locationTodo = todo },
+                    onToggleAssignee: list.hasPartner ? { cycleAssignee(todo, in: list) } : nil,
+                    assigneeInitials: assigneeInitials(for: todo),
+                    assignedToMe: todo.assigneeId != nil && todo.assigneeId == store.currentUserId,
+                    isInChallenge: isInChallenge(todo),
                     onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
                 )
                 .transition(.rowInsertion)
             }
         }
+    }
+
+    /// Whether ticking this one scores a point.
+    ///
+    /// Read from the challenge's own task list rather than the item's
+    /// `challengeId`, so the flag is right the moment the scoreboard arrives —
+    /// the items themselves only pick it up on the next list refresh.
+    private func isInChallenge(_ todo: Todo) -> Bool {
+        guard let challenge = store.challenge(for: listId), challenge.isRunning else { return false }
+        return challenge.todoIds.contains(todo.id) || todo.challengeId == challenge.id
     }
 
     @ViewBuilder
@@ -292,6 +332,9 @@ struct ListDetailView: View {
                                 deadlineTarget = .item(todoId: todo.id, currentDate: todo.doBefore, title: todo.title)
                             },
                             onSetLocation: { locationTodo = todo },
+                            onToggleAssignee: nil,
+                            assigneeInitials: nil,
+                            assignedToMe: false,
                             onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
                         )
                         .transition(.rowInsertion)
@@ -299,6 +342,28 @@ struct ListDetailView: View {
                 }
             }
         }
+    }
+
+
+    private func answer(_ challenge: Challenge, accept: Bool) {
+        Task { await store.answerChallenge(listId: listId, challengeId: challenge.id, accept: accept) }
+    }
+
+    /// Who has this task, as initials, or nil when nobody has claimed it.
+    private func assigneeInitials(for todo: Todo) -> String? {
+        guard let assigneeId = todo.assigneeId else { return nil }
+        if assigneeId == store.currentUserId { return "Me" }
+        return store.partner(id: assigneeId)?.initials ?? "?"
+    }
+
+    /// Cycles ownership: unclaimed → mine → theirs → unclaimed.
+    ///
+    /// A cycle rather than a picker because there are only ever two people on a
+    /// list, and a two-option menu costs more taps than it saves.
+    private func cycleAssignee(_ todo: Todo, in list: TodoList) {
+        guard let me = store.currentUserId else { return }
+        let next = AssigneeCycle.next(current: todo.assigneeId, me: me, partner: list.partnerId)
+        Task { await store.setTodoAssignee(listId: listId, todoId: todo.id, assigneeId: next) }
     }
 
     // MARK: - Add bar

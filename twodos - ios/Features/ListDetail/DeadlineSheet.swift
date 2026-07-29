@@ -214,7 +214,7 @@ struct DeadlineSheet: View {
 
         var id: String { rawValue }
 
-        var title: String {
+        var title: LocalizedStringResource {
             switch self {
             case .inAnHour: "In an hour"
             case .thisEvening: "This evening"

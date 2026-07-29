@@ -201,3 +201,11 @@ the highest-value remaining watch feature.
 
 See **`API-REVIEW.md`** for the API analysis and the prioritised list of
 suggested server and client changes.
+
+
+Blocking push (only you can do these):
+
+1. APNs key — create a .p8 in the Apple Developer portal. Gives you the key file, a Key ID, and your Team ID (V2Y9RFPG3D).
+2. Add aps-environment to the iOS entitlements. Without it push fails on device regardless of server state.
+3. Firebase project + service-account JSON for Android.
+4. Set APNS_PRIVATE_KEY, and the apns_key_id / apns_team_id / apns_default_topic / fcm_project_id config rows.

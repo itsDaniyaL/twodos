@@ -1,8 +1,31 @@
 import SwiftUI
+import UIKit
 import CoreSpotlight
+
+/// Exists only for the two remote-notification callbacks.
+///
+/// SwiftUI has no equivalent hook: `didRegisterForRemoteNotifications` is
+/// delivered to the application delegate and nowhere else, so push cannot work
+/// without one.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in PushRegistrationService.shared.handle(deviceToken: deviceToken) }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: any Error
+    ) {
+        Task { @MainActor in PushRegistrationService.shared.handle(error: error) }
+    }
+}
 
 @main
 struct TwodosApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = AppStore()
     @State private var theme = ThemeStore.shared
     @State private var notificationSettings = NotificationSettingsStore.shared

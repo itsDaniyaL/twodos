@@ -15,6 +15,15 @@ struct TodoRow: View {
     /// Pin this one item to a place. The API has always supported it; nothing
     /// reached it until now.
     let onSetLocation: () -> Void
+    /// Cycles who has this task. Nil when the list is not shared — there is
+    /// nobody to share it with.
+    var onToggleAssignee: (() -> Void)?
+    /// Initials of whoever has taken this on, already resolved. Nil = unclaimed.
+    var assigneeInitials: String?
+    /// Whether the assignee is the person looking at the screen.
+    var assignedToMe: Bool = false
+    /// Ticking this one scores a point in the list's running challenge.
+    var isInChallenge: Bool = false
     let onDelete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -53,6 +62,15 @@ struct TodoRow: View {
                 checkbox
                 textColumn
                 Spacer(minLength: 0)
+                // A flag, not a chip: it needs to read as a mark on the task
+                // rather than another piece of metadata competing with the
+                // deadline beside it.
+                if isInChallenge {
+                    Image(systemName: "flag.checkered")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Brand.apricot)
+                        .accessibilityHidden(true)
+                }
                 if todo.doBefore != nil { deadlineChip }
             }
             .padding(.horizontal, 14)
@@ -81,6 +99,12 @@ struct TodoRow: View {
             Button(action: onSetLocation) {
                 Label(todo.hasLocation ? "Change the place" : "Remind me at a place",
                       systemImage: "mappin.and.ellipse")
+            }
+            if let onToggleAssignee {
+                Button(action: onToggleAssignee) {
+                    Label(assigneeInitials == nil ? "I'll do this" : "Change who has it",
+                          systemImage: "person.crop.circle.badge.checkmark")
+                }
             }
             Divider()
             Button(role: .destructive, action: onDelete) {
@@ -141,6 +165,18 @@ struct TodoRow: View {
                     .foregroundStyle(Brand.danger)
             }
 
+            if let initials = assigneeInitials {
+                // "Mine" reads faster than your own initials, which you have to
+                // decode against your own name before it means anything.
+                Label(
+                    assignedToMe ? "Mine" : initials,
+                    systemImage: assignedToMe ? "person.fill" : "person"
+                )
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(assignedToMe ? Brand.meadow : .secondary)
+                .lineLimit(1)
+            }
+
             // Without this a place reminder is invisible until the moment it
             // fires, and the user has no way to tell they set one.
             if todo.hasLocation {
@@ -167,9 +203,13 @@ struct TodoRow: View {
 
     private var accessibilityLabel: String {
         var parts = [todo.title]
+        if isInChallenge { parts.append("in the challenge") }
         if todo.hasLocation {
             parts.append("reminder when you \(todo.trigger.shortTitle.lowercased()) at "
                          + (todo.locationName ?? "a saved place"))
+        }
+        if let initials = assigneeInitials {
+            parts.append(assignedToMe ? "yours" : "with \(initials)")
         }
         if let due = todo.doBefore {
             parts.append(todo.done ? "was due \(Format.deadline(due))" : "due \(Format.deadline(due))")

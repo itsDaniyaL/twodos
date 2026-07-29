@@ -154,8 +154,22 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
     /// it was created. Surfaced so a shared list can say who changed what.
     var updatedBy: String?
 
+    /// Which challenge this task is part of, if any.
+    var challengeId: String?
+
+    /// Who actually ticked this off. Distinct from `updatedBy`, which records
+    /// any edit — renaming a task is not finishing it.
+    var completedBy: String?
+
+    /// Which of the two people on the list has taken this task on.
+    ///
+    /// `nil` is a real state — "nobody has claimed this yet" — and the default
+    /// for every shared list, not a missing value.
+    var assigneeId: String?
+
     enum CodingKeys: String, CodingKey {
-        case id, listId, title, done, order, doBefore, updatedAt, updatedBy
+        case id, listId, title, done, order, doBefore, updatedAt, updatedBy, assigneeId
+        case challengeId, completedBy
         case locationName, locationLat, locationLng, locationRadius
         case locationTriggerValue = "locationTrigger"
     }
@@ -170,6 +184,9 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
         doBefore = try c.decodeIfPresent(Date.self, forKey: .doBefore)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
         updatedBy = try c.decodeIfPresent(String.self, forKey: .updatedBy)
+        assigneeId = try c.decodeIfPresent(String.self, forKey: .assigneeId)
+        challengeId = try c.decodeIfPresent(String.self, forKey: .challengeId)
+        completedBy = try c.decodeIfPresent(String.self, forKey: .completedBy)
         locationName = try c.decodeIfPresent(String.self, forKey: .locationName)
         locationLat = try c.decodeIfPresent(Double.self, forKey: .locationLat)
         locationLng = try c.decodeIfPresent(Double.self, forKey: .locationLng)
@@ -179,6 +196,7 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
 
     init(id: String, listId: String, title: String, done: Bool = false, order: Int = 0,
          doBefore: Date? = nil, updatedAt: Date? = nil, updatedBy: String? = nil,
+         assigneeId: String? = nil,
          locationName: String? = nil, locationLat: Double? = nil, locationLng: Double? = nil,
          locationRadius: Double? = nil, locationTriggerValue: String? = nil) {
         self.id = id
@@ -189,6 +207,7 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
         self.doBefore = doBefore
         self.updatedAt = updatedAt
         self.updatedBy = updatedBy
+        self.assigneeId = assigneeId
         self.locationName = locationName
         self.locationLat = locationLat
         self.locationLng = locationLng
@@ -203,6 +222,126 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
 
     var hasLocation: Bool { locationLat != nil && locationLng != nil }
     var trigger: GeofenceTrigger { GeofenceTrigger(apiValue: locationTriggerValue) }
+}
+
+/// A time-boxed race between the two people on a list.
+///
+/// Created `pending` and does nothing until the other person accepts — a
+/// competition you were entered into without agreeing is not one this app runs.
+struct Challenge: Decodable, Identifiable, Equatable, Sendable {
+    let id: String
+    let listId: String
+    let createdBy: String
+    private(set) var statusValue: String
+    let deadline: Date
+    private(set) var winnerId: String?
+    private(set) var endReasonValue: String?
+    /// Score keyed by user id. Both people always appear, even on zero, so the
+    /// scoreboard never has to invent the missing side.
+    let scores: [String: Int]
+    let todoIds: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, listId, createdBy, deadline, winnerId, scores, todoIds
+        case statusValue = "status"
+        case endReasonValue = "endReason"
+    }
+
+    enum Status: String {
+        case pending  = "CHALLENGE::STATUS::PENDING"
+        case active   = "CHALLENGE::STATUS::ACTIVE"
+        case complete = "CHALLENGE::STATUS::COMPLETE"
+        case declined = "CHALLENGE::STATUS::DECLINED"
+        case cancelled = "CHALLENGE::STATUS::CANCELLED"
+    }
+
+    var status: Status { Status(rawValue: statusValue) ?? .pending }
+
+    var isLive: Bool { status == .pending || status == .active }
+    var isRunning: Bool { status == .active }
+
+    /// True when this ended level. `winnerId` is nil for a draw *and* for a
+    /// cancellation, so the two are told apart by the end reason.
+    var isDraw: Bool {
+        status == .complete && winnerId == nil
+    }
+
+    func score(for userId: String?) -> Int {
+        guard let userId else { return 0 }
+        return scores[userId] ?? 0
+    }
+
+    /// The other person's score, whoever they are.
+    func opponentScore(against userId: String?) -> Int {
+        scores.first { $0.key != userId }?.value ?? 0
+    }
+
+    var hasExpired: Bool { deadline < .now }
+
+    /// The same challenge, finished.
+    ///
+    /// Built locally from the `CHALLENGE::ENDED` payload rather than refetched,
+    /// because the endpoint only returns *live* challenges — asking it for the
+    /// result would answer `null` and wipe the scoreboard at the exact moment
+    /// somebody won it.
+    func ended(winnerId: String?, scores: [String: Int], endReason: String?) -> Challenge {
+        var finished = Challenge(from: self, scores: scores)
+        finished.statusValue = endReason == APIConstants.ChallengeEndReason.cancelled
+            ? Status.cancelled.rawValue
+            : Status.complete.rawValue
+        finished.winnerId = winnerId
+        finished.endReasonValue = endReason
+        return finished
+    }
+
+    /// The same challenge, turned down.
+    ///
+    /// Like `ended`, built locally: the endpoint only returns live challenges,
+    /// so refetching after a decline answers `null` and the person who sent the
+    /// invitation watches it vanish without ever being told why.
+    func declined() -> Challenge {
+        var refused = Challenge(from: self, scores: scores)
+        refused.statusValue = Status.declined.rawValue
+        return refused
+    }
+
+    /// The same challenge with a fresh scoreboard.
+    ///
+    /// `CHALLENGE::SCORED` carries only the scores, so applying it in place
+    /// avoids a round trip to learn two integers — which is exactly when the
+    /// scoreboard is being watched.
+    init(from other: Challenge, scores: [String: Int]) {
+        self.id = other.id
+        self.listId = other.listId
+        self.createdBy = other.createdBy
+        self.statusValue = other.statusValue
+        self.deadline = other.deadline
+        self.winnerId = other.winnerId
+        self.endReasonValue = other.endReasonValue
+        self.scores = scores
+        self.todoIds = other.todoIds
+    }
+}
+
+/// Who should have a task after the next tap.
+///
+/// A cycle rather than a picker: a list has exactly two people on it, and a
+/// two-option menu costs more taps than it saves.
+///
+/// Pure and separate from the view because the solo case is easy to get wrong —
+/// a list with no partner must go straight from mine back to unclaimed rather
+/// than to a person who is not there.
+enum AssigneeCycle {
+    static func next(current: String?, me: String, partner: String?) -> String? {
+        // A partner id equal to your own is how the API represents a solo list.
+        let other = partner.flatMap { $0 == me ? nil : $0 }
+
+        switch current {
+        case nil:  return me
+        case me:   return other      // nil on a solo list, which unclaims
+        default:   return nil
+        }
+    }
 }
 
 struct TodoList: Decodable, Identifiable, Equatable, Hashable, Sendable {
