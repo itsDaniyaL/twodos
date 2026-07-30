@@ -6,11 +6,16 @@ import OSLog
 /// activity while the app is closed.
 ///
 /// ## Permission policy
-/// The app never asks on launch. `requestAuthorizationIfNeeded` is called at the
-/// exact moment the user does something that needs a notification to be useful —
-/// setting a deadline, creating an alarm, saving a location reminder. That way
-/// the system prompt arrives with obvious context, which is both what the HIG
-/// asks for and what gets it accepted.
+/// `requestAuthorizationIfNeeded` is called at the exact moment the user does
+/// something that needs a notification to be useful — setting a deadline,
+/// creating an alarm, saving a location reminder. That way the system prompt
+/// arrives with obvious context, which is both what the HIG asks for and what
+/// gets it accepted.
+///
+/// The one exception is sign-in (`AppStore.phase`). Notifications that originate
+/// on the server — an invite, an assignment, a challenge — are addressed to
+/// someone who has set nothing up, so there is no later moment to catch. Asking
+/// once at sign-in is the only way that user is ever asked at all.
 ///
 /// If the user has already denied, nothing re-prompts; the calling screen shows
 /// an inline banner offering a jump to Settings instead.

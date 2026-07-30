@@ -38,6 +38,18 @@ final class AppStore {
             // Runs on every sign-in, not only the first: APNs tokens rotate, and
             // a stale one stops delivering without erroring.
             PushRegistrationService.shared.refresh()
+            // The one prompt that cannot be asked in context. Everything else
+            // this app notifies about is something the user set up themselves,
+            // so the prompt can wait for that moment — but an invite, a task
+            // someone assigned you, or a challenge arrives unasked, and the
+            // person who needs to be told is the one who did nothing. Waiting
+            // for them to act first means the notification they most needed is
+            // the one they never got.
+            //
+            // Registration above is deliberately independent: APNs issues a
+            // token whether or not alerts are permitted, so a "yes" here starts
+            // delivering immediately with no second round trip.
+            Task { await notifications.requestAuthorizationIfNeeded() }
         }
     }
     private(set) var user: CurrentUser?
