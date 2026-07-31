@@ -7,10 +7,18 @@ import SwiftUI
 /// into a collapsible section rather than staying interleaved.
 struct ListDetailView: View {
     let listId: String
+    /// How to leave.
+    ///
+    /// On the phone this view is pushed, so `dismiss()` pops it. In the split
+    /// view it is the detail column and there is nothing to pop — `dismiss()` is
+    /// a no-op there, which made "Back to lists" a button that took the tap and
+    /// did nothing. The sidebar passes a closure that clears the path instead.
+    var onLeave: (() -> Void)?
 
     @Environment(AppStore.self) private var store
     @Environment(LocationService.self) private var location
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     @State private var draft = ""
     @State private var showCompleted = true
@@ -30,6 +38,11 @@ struct ListDetailView: View {
 
     private var list: TodoList? { store.list(id: listId) }
 
+    /// Pops on the phone, clears the split view's selection on the tablet.
+    private func leave() {
+        if let onLeave { onLeave() } else { dismiss() }
+    }
+
     var body: some View {
         ZStack {
             ScreenBackground()
@@ -43,18 +56,24 @@ struct ListDetailView: View {
                     title: "This list is gone",
                     message: "It was deleted. Head back to see the rest.",
                     actionTitle: "Back to lists",
-                    action: { dismiss() }
+                    action: { leave() }
                 )
             }
         }
         .navigationTitle(list?.label ?? "List")
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(locationSubtitle ?? "")
-        // A list is a focused, one-thing-at-a-time screen with its own action
-        // bar along the bottom. Leaving the tab bar there stacks two rows of
-        // chrome on the same edge and invites a tap that throws away where you
-        // were. It comes back on the way out.
-        .toolbar(.hidden, for: .tabBar)
+        // On the phone a list is a focused, one-thing-at-a-time screen with its
+        // own action bar along the bottom. Leaving the tab bar there stacks two
+        // rows of chrome on the same edge and invites a tap that throws away
+        // where you were. It comes back on the way out.
+        //
+        // **Not on iPad.** With `.sidebarAdaptable` the tab bar *is* the
+        // sidebar, on the leading edge, where nothing is stacked on anything —
+        // and in the split layout a list is open in the detail column almost all
+        // the time, so hiding it removed the only route to Alarms, Activity,
+        // You and Search for as long as a list was showing.
+        .toolbar(sizeClass == .compact ? .hidden : .automatic, for: .tabBar)
         .toolbar { toolbar }
         .refreshable { await store.refreshList(id: listId) }
         .sheet(isPresented: $showingOptions) { ListOptionsSheet(listId: listId) }

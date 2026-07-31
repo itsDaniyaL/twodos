@@ -61,7 +61,7 @@ actor APIClient {
     static var baseURL: URL {
         if useLocalServer, let url = URL(string: localServer) { return url }
         #if DEBUG
-        return URL(string: "https://twodos.app")!
+        return URL(string: "https://twodos-api-staging-container.azurewebsites.net/")!
         #else
         return URL(string: "https://twodos.app")!
         #endif
