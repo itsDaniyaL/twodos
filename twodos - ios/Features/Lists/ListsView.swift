@@ -19,10 +19,34 @@ struct ListsView: View {
     @Namespace private var cardNamespace
 
     var body: some View {
-        if sizeClass == .regular {
-            splitLayout
-        } else {
-            stackLayout
+        Group {
+            if sizeClass == .regular {
+                splitLayout
+            } else {
+                stackLayout
+            }
+        }
+        // ## Why the sheets live here and not in each layout
+        // They used to be attached to `stackLayout` only. Both layouts share
+        // `toolbar`, so on iPad the Sort and New list buttons set their flags
+        // and nothing presented — the buttons looked live, took the tap, and did
+        // nothing. "Create your first list" in the empty state was dead for the
+        // same reason.
+        //
+        // Attaching them to the branch instead of to the thing that owns the
+        // state is what made that possible, so the fix is structural: there is
+        // now one place to attach a presentation, and it cannot be reached by
+        // one layout and missed by the other.
+        .sheet(isPresented: $showingCreateSheet) {
+            CreateListSheet()
+        }
+        .sheet(isPresented: $showingSortMenu) {
+            SortSheet(selection: Binding(
+                get: { store.sortOrder },
+                set: { store.sortOrder = $0 }
+            ))
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -42,7 +66,7 @@ struct ListsView: View {
             .toolbar { toolbar }
         } detail: {
             if case .detail(let id) = path.last {
-                ListDetailView(listId: id)
+                ListDetailView(listId: id) { path = [] }
             } else {
                 ZStack {
                     ScreenBackground()
@@ -71,18 +95,6 @@ struct ListsView: View {
                     ListDetailView(listId: id)
                         .navigationTransition(.zoom(sourceID: id, in: cardNamespace))
                 }
-            }
-            .refreshable { await store.refreshAll() }
-            .sheet(isPresented: $showingCreateSheet) {
-                CreateListSheet()
-            }
-            .sheet(isPresented: $showingSortMenu) {
-                SortSheet(selection: Binding(
-                    get: { store.sortOrder },
-                    set: { store.sortOrder = $0 }
-                ))
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -134,6 +146,9 @@ struct ListsView: View {
             .motion(Motion.content, value: displayedLists.map(\.id))
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
+        // On the scroll view rather than on the stack's container, so the
+        // sidebar column pulls to refresh too. It only worked on iPhone before.
+        .refreshable { await store.refreshAll() }
     }
 
     @ViewBuilder
