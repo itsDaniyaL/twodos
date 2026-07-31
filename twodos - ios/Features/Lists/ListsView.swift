@@ -129,7 +129,8 @@ struct ListsView: View {
                         partner: store.partner(id: list.partnerId),
                         currentUserId: store.currentUserId,
                         matchedID: list.id,
-                        namespace: cardNamespace
+                        namespace: cardNamespace,
+                        isSelected: isShowingInDetail(list.id)
                     ) {
                         open(list.id)
                     }
@@ -206,7 +207,8 @@ struct ListsView: View {
                         partner: store.partner(id: list.partnerId),
                         currentUserId: store.currentUserId,
                         matchedID: list.id,
-                        namespace: cardNamespace
+                        namespace: cardNamespace,
+                        isSelected: isShowingInDetail(list.id)
                     ) {
                         open(list.id)
                     }
@@ -248,6 +250,14 @@ struct ListsView: View {
     /// thing on the path. The stack pushes it; the split view shows it.
     private func open(_ listId: String) {
         path = [.detail(listId)]
+    }
+
+    /// Only ever true in the split layout. On the phone the pushed screen covers
+    /// the sidebar, so marking a card behind it would be marking something
+    /// nobody can see.
+    private func isShowingInDetail(_ listId: String) -> Bool {
+        guard sizeClass == .regular, case .detail(let open) = path.last else { return false }
+        return open == listId
     }
 
     // MARK: - Data

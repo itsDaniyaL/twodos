@@ -13,6 +13,12 @@ struct ListCard: View {
     let currentUserId: String?
     let matchedID: String
     let namespace: Namespace.ID
+    /// Whether this is the list currently open in the split view's detail column.
+    ///
+    /// Always false on the phone, where the pushed screen *is* the answer. On a
+    /// tablet both columns are visible at once, so without this the sidebar
+    /// gives no clue which of fifteen cards you are looking at.
+    var isSelected: Bool = false
     let onOpen: () -> Void
 
     @Environment(AppStore.self) private var store
@@ -51,6 +57,16 @@ struct ListCard: View {
             }
         }
         .buttonStyle(.plain)
+        // A stroke rather than a fill: the card already carries the list's own
+        // colour as a wash, and a second fill on top would fight it — on the
+        // darker tints the two are hard to tell apart.
+        .overlay {
+            if isSelected {
+                RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 2.5)
+            }
+        }
+        .motion(Motion.content, value: isSelected)
         .matchedTransitionSource(id: matchedID, in: namespace)
         .contextMenu { contextMenu } preview: { preview }
         .sheet(isPresented: $showingOptions) {
@@ -59,7 +75,7 @@ struct ListCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Opens the list")
-        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     // MARK: - Pieces
