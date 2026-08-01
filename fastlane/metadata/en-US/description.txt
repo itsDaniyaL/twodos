@@ -33,7 +33,7 @@ Get notified when your partner completes a task, accepts an invite, or makes cha
 Add and tick things off with no signal. Everything you did syncs the moment you're back.
 
 — Siri and Spotlight —
-"Hey Siri, add bread to the shopping list." Find any task from Spotlight without opening the app.
+"Hey Siri, add an item to Twodos" — it asks what, and which list, and it's done without the app ever opening. Ask what's still outstanding, too. And every list and task is searchable from Spotlight: type a few letters and jump straight to it.
 
 Who Is twodos For?
 • Couples managing household chores and grocery shopping together
