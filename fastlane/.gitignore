@@ -1,0 +1,14 @@
+report.xml
+Preview.html
+screenshots/**/*.png
+test_output
+*.mobileprovision
+
+# Credentials. There is an Apple .p8 and a Firebase admin service account in the
+# folder above this repo; neither is covered by the root .gitignore. Point the
+# lanes at them by path, never copy them in here.
+*.p8
+*.p12
+*.cer
+**/google-play-key.json
+**/*adminsdk*.json

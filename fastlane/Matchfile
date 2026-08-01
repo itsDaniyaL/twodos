@@ -1,0 +1,16 @@
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore")
+
+# All four, not just the app. The watch app and both widget extensions are
+# separate identifiers, and missing one fails at the *export* step rather than
+# the build step — a slow way to find out.
+app_identifier([
+  "com.afzaalahmadzeeshan.ios.twodos",
+  "com.afzaalahmadzeeshan.ios.twodos.watchkitapp",
+  "com.afzaalahmadzeeshan.ios.twodos.watchkitapp.widgets",
+  "com.afzaalahmadzeeshan.ios.twodos.widgets"
+])
+
+username(ENV["APPLE_ID"])
+readonly(ENV["CI"] ? true : false)

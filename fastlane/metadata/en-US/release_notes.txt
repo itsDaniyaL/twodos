@@ -1,0 +1,9 @@
+Rebuilt from the ground up as a native app — faster, far smaller, and properly at home on every Apple device.
+
+• Place reminders: pin a shop to a list and get reminded when you arrive
+• A native Apple Watch app, with complications
+• Home Screen and Lock Screen widgets, and Live Activities
+• Assign tasks to whoever's doing them, or race each other with challenges
+• Siri and Spotlight support
+• Full offline support — everything syncs when you're back
+• iPad: your lists stay beside the one you're reading

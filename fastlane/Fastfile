@@ -1,0 +1,88 @@
+default_platform(:ios)
+
+XCODEPROJ  = "twodos - ios.xcodeproj"
+APP_SCHEME = "twodos - ios"
+BUNDLE_ID  = "com.afzaalahmadzeeshan.ios.twodos"
+
+platform :ios do
+  before_all do
+    # An API key rather than Apple ID + 2FA. The latter needs a human to read a
+    # text message, and a lane that needs a human is not automation.
+    #
+    # There is an AuthKey_*.p8 in the parent folder of this repo. Point
+    # ASC_KEY_PATH at it — do not copy it in here; see fastlane/.gitignore.
+    if ENV["ASC_KEY_ID"]
+      app_store_connect_api_key(
+        key_id:       ENV["ASC_KEY_ID"],
+        issuer_id:    ENV["ASC_ISSUER_ID"],
+        key_filepath: ENV["ASC_KEY_PATH"],
+        in_house:     false
+      )
+    end
+  end
+
+  desc "Run the test suite (179 tests, 19 suites)"
+  lane :test do
+    run_tests(
+      project:     XCODEPROJ,
+      scheme:      APP_SCHEME,
+      destination: "platform=iOS Simulator,name=iPhone 17 Pro Max"
+    )
+  end
+
+  desc "Fetch signing material"
+  lane :certificates do
+    # readonly on CI, so a build can never mint new certificates behind your back.
+    match(type: "appstore", readonly: is_ci)
+  end
+
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    certificates
+
+    # One past whatever TestFlight already has. Hard-coding a build number is how
+    # you find out at upload time that it was used six months ago.
+    increment_build_number(
+      xcodeproj:    XCODEPROJ,
+      build_number: ENV["BUILD_NUMBER"] ||
+                    (latest_testflight_build_number(app_identifier: BUNDLE_ID) + 1).to_s
+    )
+
+    build_app(
+      project:       XCODEPROJ,
+      scheme:        APP_SCHEME,
+      configuration: "Release",
+      export_method: "app-store"
+      # The watch app and both widget extensions are embedded by the app target,
+      # so this one archive covers all four.
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      changelog: File.read("fastlane/metadata/en-US/release_notes.txt")
+    )
+  end
+
+  desc "Build, upload, and submit for review"
+  lane :release do
+    beta
+    upload_to_app_store(
+      submit_for_review: true,
+      automatic_release: false,
+      force:             true,   # skip the HTML preview prompt
+      precheck_include_in_app_purchases: false,
+      submission_information: {
+        add_id_info_uses_idfa: false   # true would be a lie; there is no IDFA
+      }
+    )
+  end
+
+  desc "Push metadata only — no build"
+  lane :metadata do
+    upload_to_app_store(
+      skip_binary_upload: true,
+      skip_screenshots:   true,
+      force:              true
+    )
+  end
+end

@@ -1,0 +1,4 @@
+app_identifier(ENV["IOS_BUNDLE_ID"] || "com.afzaalahmadzeeshan.ios.twodos")
+apple_id(ENV["APPLE_ID"])
+itc_team_id(ENV["ITC_TEAM_ID"])                  # App Store Connect team
+team_id(ENV["APPLE_TEAM_ID"] || "V2Y9RFPG3D")    # Developer Portal team

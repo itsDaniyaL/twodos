@@ -1,0 +1,45 @@
+twodos is the shared to-do list app built for two. Whether you're a couple, roommates, or any kind of partner — create shared task lists and stay in sync in real time.
+
+Stop texting "did you get milk?" — just add it to your shared grocery list and both of you will see it the moment it's added.
+
+— Shared Lists for Couples & Partners —
+Create unlimited collaborative to-do lists and invite your partner by email. Every task you add, complete, or reorder appears on their screen instantly. No refresh. No delay.
+
+— Real-Time Sync Across Your Devices —
+Changes sync live between iPhone, iPad, Apple Watch and Mac. One account, every device, always up to date — and your partner sees every change the moment you make it, wherever they are.
+
+— Reminders That Know Where You Are —
+Pin a place to a list or a single task and get reminded when you arrive. Add "milk" to the grocery list and your iPhone tells you when you walk into the supermarket. Everything needed to remind you is stored on your device, so it works even with no signal — and we never learn where you've been.
+
+— On Your Wrist —
+A native Apple Watch app with complications, so you can tick things off with your hands full. Ticks made offline sync the moment you're back in range.
+
+— Widgets and Live Activities —
+Put what's next on your Home Screen and Lock Screen. Tick items off without opening the app. On iPad, your lists stay beside the one you're reading.
+
+— Divide and Conquer —
+Assign a task to whoever's doing it, so nobody buys the milk twice. Or start a challenge: pick a deadline, pick the tasks, and race each other through them.
+
+— Priority, Deadlines & Colour Codes —
+Set a priority level and a due date on any list so the most important tasks rise to the top. Colour-code each list to find it at a glance. Archive completed lists to keep your home screen tidy.
+
+— Alarms —
+Set alarms on lists so neither of you forgets what needs doing. Choose a one-time alarm or a repeating daily reminder.
+
+— Partner Notifications —
+Get notified when your partner completes a task, accepts an invite, or makes changes — so you're always in the loop even when the app is closed.
+
+— Works Offline —
+Add and tick things off with no signal. Everything you did syncs the moment you're back.
+
+— Siri and Spotlight —
+"Hey Siri, add bread to the shopping list." Find any task from Spotlight without opening the app.
+
+Who Is twodos For?
+• Couples managing household chores and grocery shopping together
+• Roommates splitting tasks and shared errands
+• Long-distance partners staying coordinated day to day
+• Newlyweds planning and organising their home together
+• Any two people who need a simple shared checklist
+
+Simple, focused, and built for two.
