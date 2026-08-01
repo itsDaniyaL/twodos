@@ -1,13 +1,42 @@
 import SwiftUI
 import UIKit
 import CoreSpotlight
+import FirebaseAnalytics
+import FirebaseCore
 
-/// Exists only for the two remote-notification callbacks.
+/// Exists only for the two remote-notification callbacks, and to start Firebase.
 ///
 /// SwiftUI has no equivalent hook: `didRegisterForRemoteNotifications` is
 /// delivered to the application delegate and nowhere else, so push cannot work
 /// without one.
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    /// Analytics and Crashlytics only.
+    ///
+    /// **Not push.** Apple platforms register with APNs directly and the server
+    /// sends to APNs directly — `PushService` reserves FCM for Android. Adding
+    /// `FirebaseMessaging` here would put a second, competing registration path
+    /// in front of the one that works.
+    ///
+    /// `configure()` has to run before anything reads a Firebase API, and this
+    /// is the earliest hook a SwiftUI app has.
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Absent in a checkout without the plist, and a missing analytics SDK is
+        // not worth crashing a to-do list over.
+        if Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") != nil {
+            FirebaseApp.configure()
+
+            // Analytics is linked but nothing in the app calls it, so without an
+            // explicit reference the linker strips it and it silently never
+            // starts — the symptom is Crashlytics reporting and Analytics
+            // showing no traffic at all. One real call keeps it in.
+            Analytics.setAnalyticsCollectionEnabled(true)
+        }
+        return true
+    }
+
     func application(
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
