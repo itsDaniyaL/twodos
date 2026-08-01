@@ -53,10 +53,18 @@ struct MainTabView: View {
         // iOS 26: the tab bar shrinks out of the way as content scrolls up,
         // giving the glass cards the full height of the display.
         .tabBarMinimizeBehavior(.onScrollDown)
-        // On iPad the same five destinations become a sidebar, which is what
-        // makes the window feel like a tablet app rather than a stretched
-        // phone one. On iPhone it stays a tab bar.
-        .tabViewStyle(.sidebarAdaptable)
+        // ## Why this is not `.sidebarAdaptable`
+        // It was, and on iPad it produced two sidebars. `.sidebarAdaptable`
+        // lets the tab bar become a sidebar, and `ListsView` already nests a
+        // `NavigationSplitView` inside the Lists tab — so the window carried
+        // two sidebars, two collapse buttons, and a floating tab bar drawn over
+        // the detail column's title.
+        //
+        // Only one thing can own the sidebar, and it should be the one whose
+        // sidebar means something. The split view's sidebar is the lists, and
+        // keeping them in view while one is open is the entire reason a tablet
+        // is laid out differently. The tab bar's sidebar would only have
+        // restated the five destinations the tab bar already shows.
         .overlay(alignment: .top) { globalBanner }
         .overlay(alignment: .bottom) { undoBanner }
         // "Open my shopping list" may have run before this view existed, so the
