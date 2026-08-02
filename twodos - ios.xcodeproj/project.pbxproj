@@ -438,15 +438,14 @@
 			);
 			inputPaths = (
 				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
-				"$(SRCROOT)/$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
-				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist",
+				"$(SRCROOT)/twodos - ios/GoogleService-Info.plist",
 			);
 			name = "Upload Crashlytics dSYMs";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Uploads debug symbols so a Crashlytics stack trace is readable.\n# Without this every release crash arrives as unnamed frames.\n#\n# Skipped when the package is not checked out, so a clean clone still builds.\nRUN=\"${BUILD_DIR%%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\nif [ -f \"$RUN\" ]; then\n  \"$RUN\"\nelse\n  echo \"warning: Crashlytics upload script not found; dSYMs not uploaded\"\nfi\n";
+			shellScript = "# Uploads debug symbols so a Crashlytics stack trace is readable.\n# Without this every release crash arrives as unnamed frames.\n#\n# Skipped when the package is not checked out, so a clean clone still builds.\n# Skipped for simulator: no meaningful crash reports come from simulator builds.\n#\n# Calls upload-symbols directly with -gsp rather than via the run wrapper so\n# GOOGLE_APP_ID is always read from the source plist. The run wrapper reads\n# GOOGLE_APP_ID from INPUT_FILE_N env vars, which Xcode does not set for\n# alwaysOutOfDate phases during archive builds.\nif [[ \"${PLATFORM_NAME}\" == *simulator* ]]; then\n  echo \"note: Skipping Crashlytics dSYM upload for simulator build\"\n  exit 0\nfi\nUPLOAD=\"${BUILD_DIR%%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols\"\nif [ -f \"$UPLOAD\" ]; then\n  \"$UPLOAD\" \\\n    -gsp \"${SRCROOT}/twodos - ios/GoogleService-Info.plist\" \\\n    -p ios \\\n    \"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}\" &\nelse\n  echo \"warning: Crashlytics upload-symbols not found; dSYMs not uploaded\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -524,6 +523,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/watchos-app-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -560,6 +560,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/watchos-app-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -716,6 +717,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/ios-app-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -755,6 +757,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/ios-app-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -790,6 +793,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.twodosTests;
@@ -808,6 +812,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.twodosTests;
@@ -829,6 +834,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/ios-widgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
@@ -860,6 +866,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/ios-widgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
@@ -891,6 +898,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/watchos-widgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -923,6 +931,7 @@
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_FILE = "WidgetSupport/watchos-widgets-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
 				LD_RUNPATH_SEARCH_PATHS = (
