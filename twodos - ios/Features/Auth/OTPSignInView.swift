@@ -27,7 +27,7 @@ struct OTPSignInView: View {
             title: codeSent ? "Enter your code" : "Sign in without a password",
             subtitle: codeSent
                 ? "We sent a code to \(email). It's good for a few minutes."
-                : "We'll email you a code — no password to remember.",
+                : "We'll email you a code — no password to remember. It signs you in for about an hour and won't quietly renew.",
             errorMessage: errorMessage
         ) {
             if codeSent {
