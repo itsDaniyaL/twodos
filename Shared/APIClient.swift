@@ -95,6 +95,7 @@ actor APIClient {
         let statusCode: Int
         let data: T?
         let statusMessage: String?
+        let reason: String?
     }
 
     /// Endpoints that must not trigger a refresh (they *are* the auth flow).
@@ -205,6 +206,7 @@ actor APIClient {
         // where the value comes from differs.
         let statusCode: Int
         let statusMessage: String?
+        let reason: String?
         let value: T?
         do {
             switch location {
@@ -212,12 +214,14 @@ actor APIClient {
                 let envelope = try decoder.decode(Envelope<T>.self, from: data)
                 statusCode = envelope.statusCode
                 statusMessage = envelope.statusMessage
+                reason = envelope.reason
                 value = envelope.data
 
             case .root:
                 let status = try decoder.decode(BareStatus.self, from: data)
                 statusCode = status.statusCode
                 statusMessage = status.statusMessage
+                reason = status.reason
                 // Only decode the payload on success: an error response carries
                 // `statusMessage` where the model expects its own fields, and
                 // the message is what the caller wants in that case anyway.
@@ -256,13 +260,14 @@ actor APIClient {
                 ? statusMessage!
                 : "Something went wrong. Please try again."
             logger.info("\(method) \(path) — \(statusCode): \(message)")
-            throw APIError.server(message)
+            throw APIError.server(message, reason: reason)
         }
     }
 
     struct BareStatus: Decodable {
         let statusCode: Int
         let statusMessage: String?
+        let reason: String?
     }
 
     private func handleUnauthorized<T: Decodable>(

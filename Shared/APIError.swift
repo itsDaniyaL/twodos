@@ -8,8 +8,9 @@ import Foundation
 enum APIError: LocalizedError, Equatable {
     /// No usable network path, or the request timed out.
     case offline
-    /// The server returned a non-200 `statusCode` in the envelope, with a message.
-    case server(String)
+    /// The server returned a non-200 `statusCode` in the envelope, with a
+    /// message and — on most account endpoints — a machine-readable `reason`.
+    case server(String, reason: String?)
     /// The session is no longer valid. Triggers a sign-out.
     case unauthorized
     /// The response did not match the expected shape.
@@ -21,7 +22,7 @@ enum APIError: LocalizedError, Equatable {
         switch self {
         case .offline:
             "Can't reach twodos. Check your connection and try again."
-        case .server(let message):
+        case .server(let message, _):
             message
         case .unauthorized:
             "Your session has expired. Please sign in again."
@@ -44,17 +45,23 @@ enum APIError: LocalizedError, Equatable {
         }
     }
 
-    /// The API signals "this email exists but was invited, not registered" by
-    /// message text rather than a code, so the sign-up flow has to sniff it.
+    /// The API signals "this email exists but was invited, not registered"
+    /// with `reason: "PENDING_INVITE"` — returned by both `POST
+    /// /api/account/register` and `PUT /api/account/validate-email`.
     var suggestsInviteCompletion: Bool {
-        if case .server(let message) = self {
-            return message.localizedCaseInsensitiveContains("invited to the platform")
+        if case .server(_, let reason) = self {
+            return reason == "PENDING_INVITE"
         }
         return false
     }
 
+    /// The API has no distinct signal for this — login and OTP verification
+    /// deliberately return the same message for an unverified account as for
+    /// a wrong password, to avoid leaking account state. This is always
+    /// false today; it exists so a future distinct reason can be wired in
+    /// without touching call sites.
     var suggestsEmailVerification: Bool {
-        if case .server(let message) = self {
+        if case .server(let message, _) = self {
             return message.localizedCaseInsensitiveContains("not verified")
         }
         return false

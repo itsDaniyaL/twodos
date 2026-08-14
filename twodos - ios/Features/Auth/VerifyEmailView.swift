@@ -90,8 +90,15 @@ struct VerifyEmailView: View {
                 didVerify = true
             } catch {
                 Haptics.error()
-                errorMessage = error.userMessage
-                code = ""
+                if error.hintsAtPendingInvite {
+                    // This address turned out to be a partner's invite stub
+                    // rather than a self-registered account — it has no
+                    // verification token to check, only an invite token.
+                    path.append(AuthRoute.completeInvite(email: email))
+                } else {
+                    errorMessage = error.userMessage
+                    code = ""
+                }
             }
         }
     }

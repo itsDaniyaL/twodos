@@ -232,20 +232,21 @@ struct APIErrorTests {
         #expect(APIError.offline.isRetryable)
         #expect(APIError.unknown.isRetryable)
         #expect(!APIError.unauthorized.isRetryable)
-        #expect(!APIError.server("nope").isRetryable)
+        #expect(!APIError.server("nope", reason: nil).isRetryable)
     }
 
     @Test("A server message is shown verbatim, because the API writes decent ones")
     func serverMessagePassesThrough() {
-        #expect(APIError.server("That email is already in use.").errorDescription
+        #expect(APIError.server("That email is already in use.", reason: "ACCOUNT_EXISTS").errorDescription
                 == "That email is already in use.")
     }
 
-    @Test("The invite-completion hint keys off the message the API actually sends")
+    @Test("The invite-completion hint keys off reason, not message text")
     func detectsInviteHint() {
-        let invited = APIError.server("This email was invited to the platform.")
+        let invited = APIError.server("This email has a pending invitation.", reason: "PENDING_INVITE")
         #expect(invited.suggestsInviteCompletion)
-        #expect(!APIError.server("The username or password is incorrect.").suggestsInviteCompletion)
+        #expect(!APIError.server("The username or password is incorrect.", reason: nil).suggestsInviteCompletion)
+        #expect(!APIError.server("An account already exists with this email address.", reason: "ACCOUNT_EXISTS").suggestsInviteCompletion)
     }
 
     /// The verification hint cannot fire for a bad-credentials 401 — the API
@@ -254,7 +255,7 @@ struct APIErrorTests {
     /// failure rather than trying to detect it.
     @Test("An unverified account is indistinguishable from a wrong password")
     func cannotDetectUnverifiedEmail() {
-        let asReturnedForBoth = APIError.server("The username or password is incorrect.")
+        let asReturnedForBoth = APIError.server("The username or password is incorrect.", reason: nil)
         #expect(!asReturnedForBoth.suggestsEmailVerification)
     }
 }

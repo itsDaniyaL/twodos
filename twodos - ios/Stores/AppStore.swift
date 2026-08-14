@@ -1686,7 +1686,7 @@ final class AppStore {
         case .offline:
             banner = BannerMessage(kind: .warning, title: "You're offline",
                                    message: "We couldn't finish \(action). Your change was undone.")
-        case .server(let message):
+        case .server(let message, _):
             banner = BannerMessage(kind: .error, title: "Couldn't finish that", message: message)
         default:
             banner = BannerMessage(kind: .error, title: "Something went wrong",
