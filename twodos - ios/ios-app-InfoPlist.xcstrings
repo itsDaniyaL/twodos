@@ -48,6 +48,18 @@
           }
         }
       }
+    },
+    "NSUserTrackingUsageDescription" : {
+      "comment" : "Privacy - Tracking Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Your data helps us keep twodos reliable and improve the experience for you."
+          }
+        }
+      }
     }
   },
   "version" : "1.2"

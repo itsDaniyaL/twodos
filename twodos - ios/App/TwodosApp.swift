@@ -99,6 +99,11 @@ struct TwodosApp: App {
                     // permissions (the user may have changed them in Settings)
                     // and to reconcile with anything that happened while away.
                     if phase == .active {
+                        // Requesting ATT from the launch `.task` is too early —
+                        // the window isn't key yet and the system silently
+                        // drops the prompt. Once the scene is actually active
+                        // is the earliest point it reliably appears.
+                        Task { await TrackingAuthorization.requestIfNeeded() }
                         Task { await store.handleForeground() }
                     } else {
                         // A suspended app's timer may never fire, and a deletion
