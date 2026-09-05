@@ -39,12 +39,15 @@ struct CompleteInviteView: View {
             errorMessage: errorMessage
         ) {
             if didComplete {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .font(.system(size: 64))
-                    .foregroundStyle(Brand.success.gradient)
-                    .symbolEffect(.bounce, value: didComplete)
+                // Finishing an invitation is the moment two people become a
+                // pair in this app, which is worth marking with more than a
+                // checkmark glyph.
+                Image("IllustrationHandsSpark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 200)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
+                    .padding(.vertical, 12)
                     .accessibilityLabel("Account ready")
             } else {
                 AuthField(title: "Email", text: $email, icon: "envelope",

@@ -104,7 +104,8 @@ actor APIClient {
         "/api/account/register", "/api/account/refresh", "/api/account/social-login",
         "/api/account/validate-email", "/api/account/email-token",
         "/api/account/password-reset-token", "/api/account/reset-password",
-        "/api/account/complete-invite", "/api/account/resend-invite"
+        "/api/account/complete-invite", "/api/account/resend-invite",
+        "/api/v1/client-config"
     ]
 
     private func buildRequest(
@@ -380,16 +381,39 @@ extension APIClient {
                           body: ["email": email, "otp": otp, "platform": APIConstants.platform])
     }
 
-    func signInWithApple(identityToken: String, name: String?) async throws(APIError) -> AuthSession {
+    /// Exchanges a provider's identity token for a twodos session.
+    ///
+    /// The token is whatever that provider issues — an Apple or Google
+    /// `id_token`, a Facebook access token — and the server verifies it against
+    /// the provider before trusting a word of it. The client never inspects it.
+    ///
+    /// This is both sign-in *and* sign-up: the server creates the account when
+    /// the email is new, links the provider when the email already has one, and
+    /// completes a pending invitation when the email was invited but never
+    /// finished signing up. All three land here identically, which is the whole
+    /// point — the user taps one button and ends up signed in either way.
+    func socialLogin(provider: SocialProvider, token: String, name: String?) async throws(APIError) -> AuthSession {
         var body: [String: Any?] = [
-            "provider": "apple",
-            "token": identityToken,
+            "provider": provider.rawValue,
+            "token": token,
             "platform": APIConstants.platform
         ]
-        // Apple only supplies the name on the very first authorisation, so it is
-        // forwarded when present and omitted otherwise.
+        // Apple and the Apple-style flows only supply the name on the very
+        // first authorisation, so it is forwarded when present and omitted
+        // otherwise. Sending an empty string would overwrite a real name.
         if let name, !name.isEmpty { body["name"] = name }
         return try await perform("POST", "/api/account/social-login", body: body)
+    }
+
+    func signInWithApple(identityToken: String, name: String?) async throws(APIError) -> AuthSession {
+        try await socialLogin(provider: .apple, token: identityToken, name: name)
+    }
+
+    /// Public runtime configuration — which social providers are usable, and
+    /// the client IDs their flows need. Unauthenticated, and safe to call
+    /// before anybody has signed in, which is exactly when it is needed.
+    func clientConfig() async throws(APIError) -> ClientConfig {
+        try await perform("GET", "/api/v1/client-config")
     }
 
     func register(name: String, email: String, password: String) async throws(APIError) -> Bool {

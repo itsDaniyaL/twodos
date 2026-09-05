@@ -1,423 +1,1106 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "": {},
-    "%@": {},
-    "%@ at %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@ at %2$@"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "·" : {
+
+    },
+    "%@" : {
+
+    },
+    "%@ at %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ at %2$@"
           }
         }
       }
     },
-    "%@ challenged you": {},
-    "%@ has challenged you": {},
-    "%@ passed on this one": {},
-    "%@ wants to share this with you": {},
-    "%@ won": {},
-    "%@ won't be able to invite you to new lists. Lists you already share stay as they are.": {},
-    "%@ won, %lld–%lld": {},
-    "%@, %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@, %2$@"
+    "%@ challenged you" : {
+
+    },
+    "%@ has challenged you" : {
+
+    },
+    "%@ passed on this one" : {
+
+    },
+    "%@ wants to share this with you" : {
+
+    },
+    "%@ won" : {
+
+    },
+    "%@ won, %lld–%lld" : {
+
+    },
+    "%@ won't be able to invite you to new lists. Lists you already share stay as they are." : {
+
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
           }
         }
       }
     },
-    "%@, in %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@, in %2$@"
+    "%@, in %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, in %2$@"
           }
         }
       }
     },
-    "%lld": {},
-    "%lld %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld %2$@"
+    "%lld" : {
+
+    },
+    "%lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@"
           }
         }
       }
     },
-    "%lld lists": {},
-    "%lld min overdue": {},
-    "%lld minutes": {},
-    "%lld of %lld done": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld of %2$lld done"
+    "%lld lists" : {
+
+    },
+    "%lld min overdue" : {
+
+    },
+    "%lld minutes" : {
+
+    },
+    "%lld of %lld done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld done"
           }
         }
       }
     },
-    "%lld of %lld tasks are in the challenge.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld of %2$lld tasks are in the challenge."
+    "%lld of %lld tasks are in the challenge." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld tasks are in the challenge."
           }
         }
       }
     },
-    "%lld of ^[%lld item](inflect: true) completed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld of ^[%2$lld item](inflect: true) completed"
+    "%lld of ^[%lld item](inflect: true) completed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of ^[%2$lld item](inflect: true) completed"
           }
         }
       }
     },
-    "%lld%%": {},
-    "+ %lld more": {},
-    "1 hour": {},
-    "2 days": {},
-    "3 of 5 done": {},
-    "A week": {},
-    "About": {},
-    "About this list": {},
-    "Accent colour": {},
-    "Accept": {},
-    "Account ready": {},
-    "Activity": {},
-    "Add ${title} to ${list}": {},
-    "Add a few unfinished items to this list, then start a challenge.": {},
-    "Add a reminder": {},
-    "Add an item": {},
-    "Add any detail that would help": {},
-    "Add item": {},
-    "Add some unfinished items first": {},
-    "Add to a list": {},
-    "Add to favourites": {},
-    "Add your first item using the field below.": {},
-    "Added “%@” to %@.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "Added “%1$@” to %2$@."
+    "%lld%%" : {
+
+    },
+    "^[%lld day](inflect: true) overdue" : {
+
+    },
+    "+ %lld more" : {
+
+    },
+    "1 hour" : {
+
+    },
+    "2 days" : {
+
+    },
+    "3 of 5 done" : {
+
+    },
+    "A week" : {
+
+    },
+    "About" : {
+
+    },
+    "About this list" : {
+
+    },
+    "Accent colour" : {
+
+    },
+    "Accept" : {
+
+    },
+    "Account ready" : {
+
+    },
+    "Activity" : {
+
+    },
+    "Add ${title} to ${list}" : {
+
+    },
+    "Add a few unfinished items to this list, then start a challenge." : {
+
+    },
+    "Add a reminder" : {
+
+    },
+    "Add an item" : {
+
+    },
+    "Add any detail that would help" : {
+
+    },
+    "Add item" : {
+
+    },
+    "Add some unfinished items first" : {
+
+    },
+    "Add to a list" : {
+
+    },
+    "Add to favourites" : {
+
+    },
+    "Add your first item using the field below." : {
+
+    },
+    "Added “%@” to %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Added “%1$@” to %2$@."
           }
         }
       }
     },
-    "Adds an item to one of your twodos lists.": {},
-    "Alarm name": {},
-    "Alarm options": {},
-    "Alarms": {},
-    "Alarms are one-off or repeating nudges that aren't tied to a list. Deadlines on lists live with the list itself.": {},
-    "All %lld done": {},
-    "All done": {},
-    "All items complete": {},
-    "Allow in background": {},
-    "Already with %@": {},
-    "Already yours": {},
-    "Appearance": {},
-    "Archive": {},
-    "Archived": {},
-    "Archived lists, %lld": {},
-    "Back to lists": {},
-    "Block": {},
-    "Block %@": {},
-    "Block %@?": {},
-    "Blocked": {},
-    "Call it off": {},
-    "Called off": {},
-    "Cancel": {},
-    "Cancel — keep my account": {},
-    "Challenge": {},
-    "Challenge running": {},
-    "Challenge sent to %@, not answered yet": {},
-    "Challenge. You %lld, %@ %lld. %@": {},
-    "Change password": {},
-    "Change reminder": {},
-    "Change the place": {},
-    "Change who has it": {},
-    "Choose": {},
-    "Choose one on the left, or make a new one.": {},
-    "Clear": {},
-    "Clear all": {},
-    "Clear completed": {},
-    "Clear search": {},
-    "Collapses the section": {},
-    "Colour": {},
-    "Complete invite": {},
-    "Completed": {},
-    "Continue with email": {},
-    "Copy it exactly as it appears in the email — codes can contain letters as well as numbers.": {},
-    "Couldn't sign in with Apple": {},
-    "Create": {},
-    "Create account": {},
-    "Create an account": {},
-    "Create an alarm": {},
-    "Create your first list": {},
-    "Deadline": {},
-    "Decline": {},
-    "Declined": {},
-    "Delete": {},
-    "Delete account": {},
-    "Delete everything": {},
-    "Delete list": {},
-    "Delete my account": {},
-    "Delete this alarm?": {},
-    "Delete your twodos account?": {},
-    "Delete “%@”?": {},
-    "Dismiss": {},
-    "Done": {},
-    "Done choosing a colour": {},
-    "Due %@": {},
-    "Due now": {},
-    "Edit": {},
-    "Edit item": {},
-    "Edit name": {},
-    "Edit text": {},
-    "Email me a code": {},
-    "Email me a deletion code": {},
-    "Email me a reset code": {},
-    "Email verified": {},
-    "Empty list": {},
-    "Ends": {},
-    "Ends %@": {},
-    "Ends %@ · the score is at the top of the list": {},
-    "Enter the code we sent to %@.": {},
-    "Exact time": {},
-    "Expands the section": {},
-    "Find a list by name, or an item by what's written on it.": {},
-    "Finish setting up": {},
-    "Forgot password?": {},
-    "Getting your lists…": {},
-    "Go to sign in": {},
-    "Graphite removes colour from the interface entirely, which can make text easier to separate from the background.": {},
-    "Groceries, Weekend trip, Things to fix…": {},
-    "Hide": {},
-    "Hide password": {},
-    "I already have an account": {},
-    "I couldn't reach twodos just now. Try again in a moment.": {},
-    "I haven't verified my email yet": {},
-    "I need something to add.": {},
-    "I was invited to a list": {},
-    "I'll do this": {},
-    "If they don't have twodos yet, we'll email them an invitation.": {},
-    "In %lld min": {},
-    "In an hour": {},
-    "Invitations": {},
-    "Invitations, alarms, and changes your partner makes will show up here.": {},
-    "It was deleted. Head back to see the rest.": {},
-    "It's a draw": {},
-    "It's a draw — %lld each": {},
-    "Item": {},
-    "Item text": {},
-    "Items": {},
-    "Just now": {},
-    "Keep my account": {},
-    "Keep reminding me in the background?": {},
-    "Last seen %@": {},
-    "List": {},
-    "List deadline, %@": {},
-    "List info": {},
-    "List name": {},
-    "List settings": {},
-    "Lists": {},
-    "Lists and items": {},
-    "Live": {},
-    "Loading": {},
-    "Loading activity…": {},
-    "Loading alarms…": {},
-    "Loading partners…": {},
-    "Loading your lists…": {},
-    "Make a list for yourself, or share one with someone and you'll both see every change.": {},
-    "Mark all as read": {},
-    "Mark as done": {},
-    "Mark as not done": {},
-    "Marks a twodos item as done, or not done.": {},
-    "Marks as done": {},
-    "Marks as not done": {},
-    "Move back to Lists": {},
-    "Name for this place": {},
-    "Name this place": {},
-    "New alarm": {},
-    "New item": {},
-    "New list": {},
-    "Next week": {},
-    "No alarms": {},
-    "No items yet": {},
-    "No list or item matches “%@”.": {},
-    "No lists yet": {},
-    "No partners yet": {},
-    "None": {},
-    "Normal": {},
-    "Not completed": {},
-    "Not now": {},
-    "Not urgent": {},
-    "Nothing found": {},
-    "Nothing here yet": {},
-    "Nothing left on this one for either of you.": {},
-    "Nothing left on this one.": {},
-    "Nothing left to race for": {},
-    "Nothing outstanding": {},
-    "Nothing outstanding.": {},
-    "Nothing yet": {},
-    "Notifications": {},
-    "OK": {},
-    "Offline": {},
-    "One-time code": {},
-    "Open ${list}": {},
-    "Open a list": {},
-    "Opens one of your twodos lists.": {},
-    "Opens the deadline picker": {},
-    "Opens the list": {},
-    "Opens the list's details": {},
-    "Options for %@": {},
-    "Overdue": {},
-    "Overdue since yesterday": {},
-    "Overdue · %@": {},
-    "Partner's email address": {},
-    "Partners": {},
-    "Password changed": {},
-    "Password requirements": {},
-    "Past": {},
-    "Paste or type your code": {},
-    "Permanently deletes all completed items": {},
-    "Pick a list": {},
-    "Pick at least one task.": {},
-    "Please wait…": {},
-    "Preview": {},
-    "Priority": {},
-    "Quick picks": {},
-    "Race %@": {},
-    "Race your partner to the deadline": {},
-    "Reconnecting…": {},
-    "Remind me": {},
-    "Remind me at a place": {},
-    "Reminder location": {},
-    "Remove": {},
-    "Remove from favourites": {},
-    "Remove reminder": {},
-    "Rename list": {},
-    "Repeat": {},
-    "Report": {},
-    "Report %@": {},
-    "Report submitted": {},
-    "Resend in %llds": {},
-    "Reset password": {},
-    "Save": {},
-    "Save reminder": {},
-    "Search": {},
-    "Search for a place": {},
-    "Search for a place, tap the map, or use your current location.": {},
-    "Search your lists": {},
-    "Select all": {},
-    "Send a test notification": {},
-    "Sends one notification right now so you can check how it looks and sounds.": {},
-    "Sent — check your banners": {},
-    "Set": {},
-    "Set a reminder": {},
-    "Set new password": {},
-    "Share a list with someone and they'll appear here. You can block or report anyone from this screen.": {},
-    "Shared lists for two.": {},
-    "Sharing with": {},
-    "Show password": {},
-    "Sign in": {},
-    "Sign out": {},
-    "Sign out of twodos?": {},
-    "Sign up": {},
-    "Sign-in and security": {},
-    "Snooze": {},
-    "Someone wants to share this with you": {},
-    "Sort": {},
-    "Sort by": {},
-    "Sort lists, currently %@": {},
-    "Start": {},
-    "Start a challenge": {},
-    "Street-level preview of the selected place": {},
-    "Submit": {},
-    "Tells you how much is left across your lists.": {},
-    "Text size": {},
-    "Thank you": {},
-    "That doesn't match the email on this account.": {},
-    "Their email address": {},
-    "Theme": {},
-    "They'll be able to share lists with you again.": {},
-    "They've challenged you — answer it on the list": {},
-    "This cannot be undone. Your lists, items, alarms, and sharing history are all removed.": {},
-    "This evening": {},
-    "This is permanent": {},
-    "This list is gone": {},
-    "This list is overdue": {},
-    "This weekend": {},
-    "Tick an item off": {},
-    "Time's up — counting the score": {},
-    "Time's up, counting the score": {},
-    "Today": {},
-    "Today, %@": {},
-    "Tomorrow": {},
-    "Tomorrow eve": {},
-    "Tomorrow, %@": {},
-    "Tonight": {},
-    "Trigger within": {},
-    "Unblock": {},
-    "Unblock %@?": {},
-    "Unlink": {},
-    "Upcoming": {},
-    "Update password": {},
-    "Update reminder": {},
-    "Urgent": {},
-    "Urgent lists sort to the top and are marked on their card.": {},
-    "Use a different email": {},
-    "Use my current location": {},
-    "Verification code": {},
-    "Verify": {},
-    "Verify email": {},
-    "Version %@": {},
-    "Waiting for %@ to accept": {},
-    "Waiting for them to accept": {},
-    "We'll take a look. You can also block %@ if you'd rather not hear from them.": {},
-    "Weekend trip": {},
-    "What counts": {},
-    "What should I add?": {},
-    "What should we call you?": {},
-    "What's outstanding": {},
-    "What's the list for?": {},
-    "What's this for?": {},
-    "When": {},
-    "When to remind me": {},
-    "Which list?": {},
-    "Who gets it": {},
-    "Who gets reminded": {},
-    "Who's this list for?": {},
-    "Whoever ticks off the most before the deadline wins. Finish every one of them first and it ends there and then.": {},
-    "Withdraw": {},
-    "Wrong email address?": {},
-    "Yesterday": {},
-    "You": {},
-    "You won": {},
-    "You won, %lld–%lld": {},
-    "You're not signed in to twodos. Open the app to sign in first.": {},
-    "Your lists stay safe — you'll just need to sign in again.": {},
-    "Your name": {},
-    "Your partner": {},
-    "^[%lld day](inflect: true) overdue": {},
-    "done": {},
-    "twodos": {},
-    "twodos %@": {},
-    "twodos can only alert you at %@ while the app is open. Allowing background location means the reminder finds you even when twodos is closed.": {},
-    "your partner": {},
-    "·": {}
+    "Adds an item to one of your twodos lists." : {
+
+    },
+    "Alarm name" : {
+
+    },
+    "Alarm options" : {
+
+    },
+    "Alarms" : {
+
+    },
+    "Alarms are one-off or repeating nudges that aren't tied to a list. Deadlines on lists live with the list itself." : {
+
+    },
+    "All %lld done" : {
+
+    },
+    "All done" : {
+
+    },
+    "All items complete" : {
+
+    },
+    "Allow in background" : {
+
+    },
+    "Already with %@" : {
+
+    },
+    "Already yours" : {
+
+    },
+    "Appearance" : {
+
+    },
+    "Archive" : {
+
+    },
+    "Archived" : {
+
+    },
+    "Archived lists, %lld" : {
+
+    },
+    "Back to lists" : {
+
+    },
+    "Block" : {
+
+    },
+    "Block %@" : {
+
+    },
+    "Block %@?" : {
+
+    },
+    "Blocked" : {
+
+    },
+    "Call it off" : {
+
+    },
+    "Called off" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Cancel — keep my account" : {
+
+    },
+    "Challenge" : {
+
+    },
+    "Challenge running" : {
+
+    },
+    "Challenge sent to %@, not answered yet" : {
+
+    },
+    "Challenge. You %lld, %@ %lld. %@" : {
+
+    },
+    "Change password" : {
+
+    },
+    "Change reminder" : {
+
+    },
+    "Change the place" : {
+
+    },
+    "Change who has it" : {
+
+    },
+    "Choose" : {
+
+    },
+    "Choose one on the left, or make a new one." : {
+
+    },
+    "Clear" : {
+
+    },
+    "Clear all" : {
+
+    },
+    "Clear completed" : {
+
+    },
+    "Clear search" : {
+
+    },
+    "Collapses the section" : {
+
+    },
+    "Colour" : {
+
+    },
+    "Complete invite" : {
+
+    },
+    "Completed" : {
+
+    },
+    "Continue with email" : {
+
+    },
+    "Continue with Facebook" : {
+
+    },
+    "Continue with Google" : {
+
+    },
+    "Copy it exactly as it appears in the email — codes can contain letters as well as numbers." : {
+
+    },
+    "Couldn't sign in" : {
+
+    },
+    "Create" : {
+
+    },
+    "Create account" : {
+
+    },
+    "Create an account" : {
+
+    },
+    "Create an alarm" : {
+
+    },
+    "Create your first list" : {
+
+    },
+    "Deadline" : {
+
+    },
+    "Decline" : {
+
+    },
+    "Declined" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete “%@”?" : {
+
+    },
+    "Delete account" : {
+
+    },
+    "Delete everything" : {
+
+    },
+    "Delete list" : {
+
+    },
+    "Delete my account" : {
+
+    },
+    "Delete this alarm?" : {
+
+    },
+    "Delete your twodos account?" : {
+
+    },
+    "Dismiss" : {
+
+    },
+    "done" : {
+
+    },
+    "Done" : {
+
+    },
+    "Done choosing a colour" : {
+
+    },
+    "Due %@" : {
+
+    },
+    "Due now" : {
+
+    },
+    "Edit" : {
+
+    },
+    "Edit item" : {
+
+    },
+    "Edit name" : {
+
+    },
+    "Edit text" : {
+
+    },
+    "Email me a code" : {
+
+    },
+    "Email me a deletion code" : {
+
+    },
+    "Email me a reset code" : {
+
+    },
+    "Email verified" : {
+
+    },
+    "Empty list" : {
+
+    },
+    "Ends" : {
+
+    },
+    "Ends %@" : {
+
+    },
+    "Ends %@ · the score is at the top of the list" : {
+
+    },
+    "Enter the code we sent to %@." : {
+
+    },
+    "Exact time" : {
+
+    },
+    "Expands the section" : {
+
+    },
+    "Find a list by name, or an item by what's written on it." : {
+
+    },
+    "Finish setting up" : {
+
+    },
+    "Forgot password?" : {
+
+    },
+    "Getting your lists…" : {
+
+    },
+    "Go to sign in" : {
+
+    },
+    "Graphite removes colour from the interface entirely, which can make text easier to separate from the background." : {
+
+    },
+    "Groceries, Weekend trip, Things to fix…" : {
+
+    },
+    "Hide" : {
+
+    },
+    "Hide password" : {
+
+    },
+    "I already have an account" : {
+
+    },
+    "I couldn't reach twodos just now. Try again in a moment." : {
+
+    },
+    "I haven't verified my email yet" : {
+
+    },
+    "I need something to add." : {
+
+    },
+    "I was invited to a list" : {
+
+    },
+    "I'll do this" : {
+
+    },
+    "If they don't have twodos yet, we'll email them an invitation." : {
+
+    },
+    "In %lld min" : {
+
+    },
+    "In an hour" : {
+
+    },
+    "Invitations" : {
+
+    },
+    "Invitations, alarms, and changes your partner makes will show up here." : {
+
+    },
+    "It was deleted. Head back to see the rest." : {
+
+    },
+    "It's a draw" : {
+
+    },
+    "It's a draw — %lld each" : {
+
+    },
+    "Item" : {
+
+    },
+    "Item text" : {
+
+    },
+    "Items" : {
+
+    },
+    "Just now" : {
+
+    },
+    "Keep my account" : {
+
+    },
+    "Keep reminding me in the background?" : {
+
+    },
+    "Last seen %@" : {
+
+    },
+    "List" : {
+
+    },
+    "List deadline, %@" : {
+
+    },
+    "List info" : {
+
+    },
+    "List name" : {
+
+    },
+    "List settings" : {
+
+    },
+    "Lists" : {
+
+    },
+    "Lists and items" : {
+
+    },
+    "Live" : {
+
+    },
+    "Loading" : {
+
+    },
+    "Loading activity…" : {
+
+    },
+    "Loading alarms…" : {
+
+    },
+    "Loading partners…" : {
+
+    },
+    "Loading your lists…" : {
+
+    },
+    "Make a list for yourself, or share one with someone and you'll both see every change." : {
+
+    },
+    "Mark all as read" : {
+
+    },
+    "Mark as done" : {
+
+    },
+    "Mark as not done" : {
+
+    },
+    "Marks a twodos item as done, or not done." : {
+
+    },
+    "Marks as done" : {
+
+    },
+    "Marks as not done" : {
+
+    },
+    "Move back to Lists" : {
+
+    },
+    "Name for this place" : {
+
+    },
+    "Name this place" : {
+
+    },
+    "New alarm" : {
+
+    },
+    "New item" : {
+
+    },
+    "New list" : {
+
+    },
+    "Next week" : {
+
+    },
+    "No alarms" : {
+
+    },
+    "No items yet" : {
+
+    },
+    "No list or item matches “%@”." : {
+
+    },
+    "No lists yet" : {
+
+    },
+    "No partners yet" : {
+
+    },
+    "None" : {
+
+    },
+    "Normal" : {
+
+    },
+    "Not completed" : {
+
+    },
+    "Not now" : {
+
+    },
+    "Not urgent" : {
+
+    },
+    "Nothing found" : {
+
+    },
+    "Nothing here yet" : {
+
+    },
+    "Nothing left on this one for either of you." : {
+
+    },
+    "Nothing left on this one." : {
+
+    },
+    "Nothing left to race for" : {
+
+    },
+    "Nothing outstanding" : {
+
+    },
+    "Nothing outstanding." : {
+
+    },
+    "Nothing yet" : {
+
+    },
+    "Notifications" : {
+
+    },
+    "Offline" : {
+
+    },
+    "OK" : {
+
+    },
+    "One-time code" : {
+
+    },
+    "Open ${list}" : {
+
+    },
+    "Open a list" : {
+
+    },
+    "Opens one of your twodos lists." : {
+
+    },
+    "Opens the deadline picker" : {
+
+    },
+    "Opens the list" : {
+
+    },
+    "Opens the list's details" : {
+
+    },
+    "Options for %@" : {
+
+    },
+    "or" : {
+
+    },
+    "Overdue" : {
+
+    },
+    "Overdue · %@" : {
+
+    },
+    "Overdue since yesterday" : {
+
+    },
+    "Partner's email address" : {
+
+    },
+    "Partners" : {
+
+    },
+    "Password changed" : {
+
+    },
+    "Password requirements" : {
+
+    },
+    "Past" : {
+
+    },
+    "Paste or type your code" : {
+
+    },
+    "Permanently deletes all completed items" : {
+
+    },
+    "Pick a list" : {
+
+    },
+    "Pick at least one task." : {
+
+    },
+    "Please wait…" : {
+
+    },
+    "Preview" : {
+
+    },
+    "Priority" : {
+
+    },
+    "Quick picks" : {
+
+    },
+    "Race %@" : {
+
+    },
+    "Race your partner to the deadline" : {
+
+    },
+    "Reconnecting…" : {
+
+    },
+    "Remind me" : {
+
+    },
+    "Remind me at a place" : {
+
+    },
+    "Reminder location" : {
+
+    },
+    "Remove" : {
+
+    },
+    "Remove from favourites" : {
+
+    },
+    "Remove reminder" : {
+
+    },
+    "Rename list" : {
+
+    },
+    "Repeat" : {
+
+    },
+    "Report" : {
+
+    },
+    "Report %@" : {
+
+    },
+    "Report submitted" : {
+
+    },
+    "Resend in %llds" : {
+
+    },
+    "Reset password" : {
+
+    },
+    "Save" : {
+
+    },
+    "Save reminder" : {
+
+    },
+    "Search" : {
+
+    },
+    "Search for a place" : {
+
+    },
+    "Search for a place, tap the map, or use your current location." : {
+
+    },
+    "Search your lists" : {
+
+    },
+    "Select all" : {
+
+    },
+    "Send a test notification" : {
+
+    },
+    "Sends one notification right now so you can check how it looks and sounds." : {
+
+    },
+    "Sent — check your banners" : {
+
+    },
+    "Set" : {
+
+    },
+    "Set a reminder" : {
+
+    },
+    "Set new password" : {
+
+    },
+    "Share a list with someone and they'll appear here. You can block or report anyone from this screen." : {
+
+    },
+    "Shared lists for two." : {
+
+    },
+    "Sharing with" : {
+
+    },
+    "Show password" : {
+
+    },
+    "Sign in" : {
+
+    },
+    "Sign out" : {
+
+    },
+    "Sign out of twodos?" : {
+
+    },
+    "Sign up" : {
+
+    },
+    "Sign-in and security" : {
+
+    },
+    "Snooze" : {
+
+    },
+    "Someone wants to share this with you" : {
+
+    },
+    "Sort" : {
+
+    },
+    "Sort by" : {
+
+    },
+    "Sort lists, currently %@" : {
+
+    },
+    "Start" : {
+
+    },
+    "Start a challenge" : {
+
+    },
+    "Street-level preview of the selected place" : {
+
+    },
+    "Submit" : {
+
+    },
+    "Tells you how much is left across your lists." : {
+
+    },
+    "Text size" : {
+
+    },
+    "Thank you" : {
+
+    },
+    "That doesn't match the email on this account." : {
+
+    },
+    "Their email address" : {
+
+    },
+    "Theme" : {
+
+    },
+    "They'll be able to share lists with you again." : {
+
+    },
+    "They've challenged you — answer it on the list" : {
+
+    },
+    "This cannot be undone. Your lists, items, alarms, and sharing history are all removed." : {
+
+    },
+    "This evening" : {
+
+    },
+    "This is permanent" : {
+
+    },
+    "This list is gone" : {
+
+    },
+    "This list is overdue" : {
+
+    },
+    "This weekend" : {
+
+    },
+    "Tick an item off" : {
+
+    },
+    "Time's up — counting the score" : {
+
+    },
+    "Time's up, counting the score" : {
+
+    },
+    "Today" : {
+
+    },
+    "Today, %@" : {
+
+    },
+    "Tomorrow" : {
+
+    },
+    "Tomorrow eve" : {
+
+    },
+    "Tomorrow, %@" : {
+
+    },
+    "Tonight" : {
+
+    },
+    "Trigger within" : {
+
+    },
+    "twodos" : {
+
+    },
+    "twodos %@" : {
+
+    },
+    "twodos can only alert you at %@ while the app is open. Allowing background location means the reminder finds you even when twodos is closed." : {
+
+    },
+    "Unblock" : {
+
+    },
+    "Unblock %@?" : {
+
+    },
+    "Unlink" : {
+
+    },
+    "Upcoming" : {
+
+    },
+    "Update password" : {
+
+    },
+    "Update reminder" : {
+
+    },
+    "Urgent" : {
+
+    },
+    "Urgent lists sort to the top and are marked on their card." : {
+
+    },
+    "Use a different email" : {
+
+    },
+    "Use my current location" : {
+
+    },
+    "Verification code" : {
+
+    },
+    "Verify" : {
+
+    },
+    "Verify email" : {
+
+    },
+    "Version %@" : {
+
+    },
+    "Waiting for %@ to accept" : {
+
+    },
+    "Waiting for them to accept" : {
+
+    },
+    "We'll take a look. You can also block %@ if you'd rather not hear from them." : {
+
+    },
+    "Weekend trip" : {
+
+    },
+    "What counts" : {
+
+    },
+    "What should I add?" : {
+
+    },
+    "What should we call you?" : {
+
+    },
+    "What's outstanding" : {
+
+    },
+    "What's the list for?" : {
+
+    },
+    "What's this for?" : {
+
+    },
+    "When" : {
+
+    },
+    "When to remind me" : {
+
+    },
+    "Which list?" : {
+
+    },
+    "Who gets it" : {
+
+    },
+    "Who gets reminded" : {
+
+    },
+    "Who's this list for?" : {
+
+    },
+    "Whoever ticks off the most before the deadline wins. Finish every one of them first and it ends there and then." : {
+
+    },
+    "Withdraw" : {
+
+    },
+    "Wrong email address?" : {
+
+    },
+    "Yesterday" : {
+
+    },
+    "You" : {
+
+    },
+    "You won" : {
+
+    },
+    "You won, %lld–%lld" : {
+
+    },
+    "You're not signed in to twodos. Open the app to sign in first." : {
+
+    },
+    "Your lists stay safe — you'll just need to sign in again." : {
+
+    },
+    "Your name" : {
+
+    },
+    "your partner" : {
+
+    },
+    "Your partner" : {
+
+    }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

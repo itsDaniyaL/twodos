@@ -66,6 +66,12 @@ final class AppStore {
     private(set) var blockedUserIds: Set<String> = []
     private(set) var socialLinks: [SocialLink] = []
 
+    /// Which social providers the server says are usable, and what their flows
+    /// need. Starts empty so no button is drawn until the server has confirmed
+    /// it will work — a sign-in button that dead-ends costs more trust than a
+    /// missing one costs convenience.
+    private(set) var socialAuth: SocialAuthConfig?
+
     /// The live challenge per list, keyed by list id.
     ///
     /// Held separately from `lists` because the scoreboard is computed
@@ -472,8 +478,42 @@ final class AppStore {
     }
 
     func signInWithApple(identityToken: String, name: String?) async throws(APIError) {
-        let session = try await api.signInWithApple(identityToken: identityToken, name: name)
+        try await signInWithSocial(provider: .apple, token: identityToken, name: name)
+    }
+
+    /// Completes a social sign-in once a provider token is in hand.
+    ///
+    /// There is no separate "sign up with Google" path, and deliberately so.
+    /// The server treats one endpoint as sign-in, sign-up, provider linking and
+    /// invitation completion all at once, keyed on the verified email address:
+    ///
+    /// - a new email creates an account, already email-verified, because the
+    ///   provider has vouched for the address;
+    /// - an existing email links the provider to that account rather than
+    ///   making a second one, so somebody who signed up with a password and
+    ///   later taps Google lands in the account they already had;
+    /// - an email that was *invited* to a list but never finished signing up
+    ///   has its placeholder completed and the invitation stands, which is why
+    ///   an invited user can tap one button and arrive with the list waiting.
+    ///
+    /// The client's job is only to get the token and then load what the account
+    /// turned out to contain — which `establish` does for every route in.
+    func signInWithSocial(provider: SocialProvider, token: String, name: String?) async throws(APIError) {
+        let session = try await api.socialLogin(provider: provider, token: token, name: name)
+        // The email is not passed on: the account's address is whatever the
+        // provider verified, and `establish` reads it back from `/me` anyway.
         try await establish(session: session, email: nil)
+    }
+
+    /// Fetches the public runtime config so the sign-in screen knows which
+    /// buttons to offer. Failure is silent by design — the screen falls back to
+    /// email, which always works.
+    func refreshSocialAuthConfig() async {
+        do {
+            socialAuth = try await api.clientConfig().socialAuth
+        } catch {
+            logger.debug("client-config fetch failed: \(error.localizedDescription)")
+        }
     }
 
     private func establish(session: AuthSession, email: String?) async throws(APIError) {

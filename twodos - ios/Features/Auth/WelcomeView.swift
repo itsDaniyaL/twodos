@@ -3,25 +3,24 @@ import AuthenticationServices
 
 /// The first thing a signed-out user sees.
 ///
-/// It leads with what the app is for rather than with a form, and puts Sign in
-/// with Apple first because it is the fastest route to a working account.
+/// It leads with what the app is for rather than with a form, and puts the
+/// social buttons above the email route because they are the fastest way to a
+/// working account — one tap, no password to invent, no verification email to
+/// go and find.
+///
+/// Which buttons appear is the *server's* decision, delivered by
+/// `/api/v1/client-config` and cached on `AppStore.socialAuth`. That replaces
+/// the hardcoded flag this screen used to carry: a provider whose credentials
+/// are not configured now simply never draws a button, instead of drawing one
+/// that fails after the user has already committed to it.
 struct WelcomeView: View {
-    /// Whether to offer Sign in with Apple at all.
-    ///
-    /// Currently off: the Sign in with Apple capability is not enabled on the
-    /// App ID, so on a device build the flow fails after the user has already
-    /// committed to it — a worse experience than not offering it. The entire
-    /// implementation is kept intact behind this flag rather than deleted, so
-    /// turning it back on is a one-word change once the portal is configured.
-    static let isAppleSignInEnabled = false
-
     @Environment(AppStore.self) private var store
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var path = NavigationPath()
-    @State private var appleError: String?
+    @State private var socialError: String?
     @State private var isAuthenticating = false
     @State private var showHero = false
+    @State private var social = SocialSignInService()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -55,10 +54,15 @@ struct WelcomeView: View {
         .onAppear {
             withAnimation(Motion.content.delay(0.05)) { showHero = true }
         }
-        .alert("Couldn't sign in with Apple", isPresented: .constant(appleError != nil)) {
-            Button("OK") { appleError = nil }
+        .task {
+            // Cheap, unauthenticated, and the answer decides what this screen
+            // draws — so it runs before the user has looked away from the hero.
+            await store.refreshSocialAuthConfig()
+        }
+        .alert("Couldn't sign in", isPresented: .constant(socialError != nil)) {
+            Button("OK") { socialError = nil }
         } message: {
-            Text(appleError ?? "")
+            Text(socialError ?? "")
         }
     }
 
@@ -72,11 +76,18 @@ struct WelcomeView: View {
     /// they either have an account or they don't. It now surfaces where it is
     /// actually useful: at the point each feature is first used.
     private var hero: some View {
-        VStack(spacing: 12) {
-            TwodosHero(size: 116)
+        VStack(spacing: 10) {
+            // Two people mid-high-five says "shared lists for two" faster than
+            // the sentence underneath does, and it is the one moment in the app
+            // with room for a picture — every screen after this is a list.
+            Image("IllustrationHighFive")
+                .resizable()
+                .scaledToFit()
+                .frame(maxHeight: 220)
+                .accessibilityHidden(true)
 
             Text("twodos")
-                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .font(.system(size: 40, weight: .bold, design: .rounded))
                 .accessibilityAddTraits(.isHeader)
 
             Text("Shared lists for two.")
@@ -87,52 +98,62 @@ struct WelcomeView: View {
         .offset(y: showHero ? 0 : 12)
     }
 
-    /// Two ways in, and one quiet link for the rarer case.
+    /// The ways in, in descending order of how many people take them.
     ///
-    /// The old version offered four choices of equal visual weight, which asked
-    /// the user to make a decision before they had any information. Sign in and
-    /// sign up are the same door for most people, so they now share one button
-    /// that leads to a screen where switching between the two is one tap.
+    /// The original version offered four choices of equal visual weight, which
+    /// asked the user to decide before they had any information. Sign in and
+    /// sign up are the same door for most people, so they share one button that
+    /// leads to a screen where switching between the two is one tap.
+    ///
+    /// Weight now does the explaining: filled for the route almost everyone
+    /// takes, glass for the two that some people need, and a rule between the
+    /// social buttons and the rest.
     private var actions: some View {
         VStack(spacing: 10) {
-            // Sign in with Apple is hidden for now: the capability is not yet
-            // enabled on the App ID, so the button cannot complete on a device
-            // build. Flip `isAppleSignInEnabled` once the portal is configured —
-            // the credential handling below is finished and still wired up.
-            if Self.isAppleSignInEnabled {
-                SignInWithAppleButton(.signIn) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    handleApple(result)
-                }
-                .signInWithAppleButtonStyle(appleButtonStyle)
-                .frame(height: 50)
-                .clipShape(.rect(cornerRadius: Metrics.controlRadius))
-                .disabled(isAuthenticating)
-                .opacity(isAuthenticating ? 0.6 : 1)
+            SocialSignInButtons(
+                providers: providers,
+                isBusy: isAuthenticating,
+                onApple: handleApple,
+                onProvider: signIn(with:)
+            )
+
+            if !providers.isEmpty {
+                AuthSeparator()
+                    .padding(.vertical, 2)
             }
 
-            // Email is the only route while Apple is hidden, so it leads.
+            // Email stays the route that always works, whatever the server has
+            // configured — it is the fallback the social buttons are measured
+            // against, so it never disappears.
             PrimaryButton(title: "Continue with email", icon: "envelope") {
                 path.append(AuthRoute.signIn)
             }
+            .disabled(isAuthenticating)
 
-            Button("I was invited to a list") {
+            // Invited users mostly no longer need this: tapping any social
+            // button with the invited address signs them in and the invitation
+            // is already waiting. It stays for the people invited at an address
+            // they cannot sign in to socially — and for them it is the *only*
+            // way in, which is why it is a real button rather than the footnote
+            // link it used to be.
+            //
+            // Glass rather than filled keeps the hierarchy honest: still
+            // clearly subordinate to "Continue with email", but no longer
+            // something a person has to go looking for. A route that is the
+            // sole option for whoever needs it should never be the quietest
+            // thing on the screen.
+            SecondaryButton(title: "I was invited to a list", icon: "person.2") {
                 path.append(AuthRoute.completeInvite(email: nil))
             }
-            .font(.footnote)
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .padding(.top, 6)
+            .disabled(isAuthenticating)
+            .padding(.top, 4)
         }
         .opacity(showHero ? 1 : 0)
         .animation(Motion.content.delay(0.25), value: showHero)
     }
 
-    /// Apple's button should read as a system control, so it follows the
-    /// system appearance rather than being pinned to black.
-    private var appleButtonStyle: SignInWithAppleButton.Style {
-        colorScheme == .dark ? .white : .black
+    private var providers: [SocialProvider] {
+        store.socialAuth?.availableProviders ?? []
     }
 
     // MARK: - Apple sign-in
@@ -147,7 +168,7 @@ struct WelcomeView: View {
                   let tokenData = credential.identityToken,
                   let token = String(data: tokenData, encoding: .utf8)
             else {
-                appleError = "Apple didn't return a usable credential. Try email instead."
+                socialError = "Apple didn't return a usable credential. Try email instead."
                 return
             }
 
@@ -155,22 +176,49 @@ struct WelcomeView: View {
                 .compactMap { $0 }
                 .joined(separator: " ")
 
-            isAuthenticating = true
-            Task {
-                defer { isAuthenticating = false }
-                do {
-                    try await store.signInWithApple(identityToken: token, name: name.isEmpty ? nil : name)
-                    Haptics.success()
-                } catch {
-                    appleError = error.userMessage
-                    Haptics.error()
-                }
-            }
+            authenticate { try await store.signInWithApple(identityToken: token, name: name.isEmpty ? nil : name) }
 
         case .failure(let error):
             // The user cancelling is not an error worth reporting.
             if (error as? ASAuthorizationError)?.code == .canceled { return }
-            appleError = "Apple sign-in didn't complete. Try email instead."
+            socialError = "Apple sign-in didn't complete. Try email instead."
+        }
+    }
+
+    /// Google and Facebook: fetch a token through the system browser, then hand
+    /// it to the same endpoint Apple's token goes to.
+    private func signIn(with provider: SocialProvider) {
+        guard let config = store.socialAuth else { return }
+
+        authenticate {
+            let result = try await social.token(for: provider, config: config)
+            try await store.signInWithSocial(
+                provider: provider, token: result.token, name: result.name
+            )
+        }
+    }
+
+    /// Runs a sign-in, keeping the buttons disabled for its duration and
+    /// funnelling every outcome to one place.
+    ///
+    /// Cancellation is swallowed rather than reported: a user who dismissed the
+    /// browser does not need an alert telling them what they just chose.
+    private func authenticate(_ work: @escaping () async throws -> Void) {
+        isAuthenticating = true
+        Task {
+            defer { isAuthenticating = false }
+            do {
+                try await work()
+                Haptics.success()
+            } catch let failure as SocialSignInService.Failure {
+                if !failure.isCancellation {
+                    socialError = failure.errorDescription
+                    Haptics.error()
+                }
+            } catch {
+                socialError = error.userMessage
+                Haptics.error()
+            }
         }
     }
 }

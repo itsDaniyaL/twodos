@@ -106,10 +106,15 @@ struct ListsView: View {
         if !store.hasLoadedLists {
             LoadingView(message: "Loading your lists…")
         } else if isCompletelyEmpty {
+            // The one empty state worth illustrating: it is a first launch, it
+            // is seen once, and "share one with someone" is the whole idea of
+            // the app — which two hands meeting says better than a checklist
+            // glyph does.
             EmptyStateView(
                 icon: "checklist",
                 title: "No lists yet",
                 message: "Make a list for yourself, or share one with someone and you'll both see every change.",
+                illustration: "IllustrationHandsBright",
                 actionTitle: "Create your first list",
                 action: { showingCreateSheet = true }
             )

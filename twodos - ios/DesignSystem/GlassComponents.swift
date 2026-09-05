@@ -298,6 +298,14 @@ struct EmptyStateView: View {
     var icon: String
     var title: LocalizedStringKey
     var message: LocalizedStringKey
+    /// An asset-catalog illustration to show instead of the SF Symbol.
+    ///
+    /// Reserved for the few empty states a user actually *lands on* rather than
+    /// passes through — a first launch with no lists, say. Somewhere they will
+    /// see once, an illustration is warmth; on a state they hit repeatedly it
+    /// is noise, and the symbol is the right weight. `icon` stays required so
+    /// there is always a fallback.
+    var illustration: String?
     var actionTitle: LocalizedStringKey?
     var action: (() -> Void)?
 
@@ -305,11 +313,19 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 44, weight: .light))
-                .foregroundStyle(Color.accentColor.opacity(0.75))
-                .symbolEffect(.bounce, value: appeared)
-                .accessibilityHidden(true)
+            if let illustration {
+                Image(illustration)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 260, maxHeight: 180)
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(Color.accentColor.opacity(0.75))
+                    .symbolEffect(.bounce, value: appeared)
+                    .accessibilityHidden(true)
+            }
             Text(title)
                 .font(.title3.weight(.semibold))
             Text(message)
