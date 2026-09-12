@@ -63,20 +63,12 @@ struct ListOptionsSheet: View {
                     Task { await store.renameList(id: listId, to: trimmed) }
                 }
             }
-            .confirmationDialog(
-                "Delete “\(list?.label ?? "this list")”?",
-                isPresented: $confirmingDelete,
-                titleVisibility: .visible
-            ) {
-                Button("Delete list", role: .destructive) {
-                    Task {
-                        await store.deleteList(id: listId)
-                        dismiss()
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text(deleteWarning)
+            .deleteListConfirmation(list, isPresented: $confirmingDelete, currentUserId: store.currentUserId) {
+                // Dismiss first: the list leaves `store.lists` the moment the
+                // delete starts, and a detail screen left open over a list that
+                // no longer exists has nothing to draw.
+                dismiss()
+                Task { await store.deleteList(id: listId) }
             }
             .sheet(isPresented: $showingDeadline) {
                 if let list {
@@ -306,18 +298,5 @@ struct ListOptionsSheet: View {
         let place = list.locationName ?? "Saved place"
         let radius = list.locationRadius.map { " · \(Format.distance(metres: $0))" } ?? ""
         return "\(list.trigger.shortTitle) at \(place)\(radius)"
-    }
-
-    /// The API deletes a shared list differently depending on who asks, so the
-    /// warning has to say which one is about to happen.
-    private var deleteWarning: String {
-        guard let list else { return "This can't be undone." }
-        let isOwner = list.createdBy == store.currentUserId
-        if list.isEffectivelyPersonal(currentUserId: store.currentUserId) {
-            return "This permanently deletes the list and everything in it."
-        }
-        return isOwner
-            ? "This deletes the list for both of you, permanently."
-            : "This removes the list from your account. Your partner keeps their copy."
     }
 }

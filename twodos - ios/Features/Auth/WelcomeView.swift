@@ -1,5 +1,4 @@
 import SwiftUI
-import AuthenticationServices
 
 /// The first thing a signed-out user sees.
 ///
@@ -8,11 +7,8 @@ import AuthenticationServices
 /// working account — one tap, no password to invent, no verification email to
 /// go and find.
 ///
-/// Which buttons appear is the *server's* decision, delivered by
-/// `/api/v1/client-config` and cached on `AppStore.socialAuth`. That replaces
-/// the hardcoded flag this screen used to carry: a provider whose credentials
-/// are not configured now simply never draws a button, instead of drawing one
-/// that fails after the user has already committed to it.
+/// The buttons themselves, and the flows behind them, live in
+/// `SocialSignInSection` so the sign-in screen can offer the same set.
 struct WelcomeView: View {
     @Environment(AppStore.self) private var store
 
@@ -20,7 +16,6 @@ struct WelcomeView: View {
     @State private var socialError: String?
     @State private var isAuthenticating = false
     @State private var showHero = false
-    @State private var social = SocialSignInService()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -110,14 +105,9 @@ struct WelcomeView: View {
     /// social buttons and the rest.
     private var actions: some View {
         VStack(spacing: 10) {
-            SocialSignInButtons(
-                providers: providers,
-                isBusy: isAuthenticating,
-                onApple: handleApple,
-                onProvider: signIn(with:)
-            )
+            SocialSignInSection(isAuthenticating: $isAuthenticating) { socialError = $0 }
 
-            if !providers.isEmpty {
+            if store.hasSocialProviders {
                 AuthSeparator()
                     .padding(.vertical, 2)
             }
@@ -150,76 +140,6 @@ struct WelcomeView: View {
         }
         .opacity(showHero ? 1 : 0)
         .animation(Motion.content.delay(0.25), value: showHero)
-    }
-
-    private var providers: [SocialProvider] {
-        store.socialAuth?.availableProviders ?? []
-    }
-
-    // MARK: - Apple sign-in
-
-    /// Apple hands us an identity token which the API verifies server-side.
-    /// The display name only arrives on the *first* authorisation, so it is
-    /// forwarded when present — after that Apple omits it forever.
-    private func handleApple(_ result: Result<ASAuthorization, Error>) {
-        switch result {
-        case .success(let authorization):
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                  let tokenData = credential.identityToken,
-                  let token = String(data: tokenData, encoding: .utf8)
-            else {
-                socialError = "Apple didn't return a usable credential. Try email instead."
-                return
-            }
-
-            let name = [credential.fullName?.givenName, credential.fullName?.familyName]
-                .compactMap { $0 }
-                .joined(separator: " ")
-
-            authenticate { try await store.signInWithApple(identityToken: token, name: name.isEmpty ? nil : name) }
-
-        case .failure(let error):
-            // The user cancelling is not an error worth reporting.
-            if (error as? ASAuthorizationError)?.code == .canceled { return }
-            socialError = "Apple sign-in didn't complete. Try email instead."
-        }
-    }
-
-    /// Google and Facebook: fetch a token through the system browser, then hand
-    /// it to the same endpoint Apple's token goes to.
-    private func signIn(with provider: SocialProvider) {
-        guard let config = store.socialAuth else { return }
-
-        authenticate {
-            let result = try await social.token(for: provider, config: config)
-            try await store.signInWithSocial(
-                provider: provider, token: result.token, name: result.name
-            )
-        }
-    }
-
-    /// Runs a sign-in, keeping the buttons disabled for its duration and
-    /// funnelling every outcome to one place.
-    ///
-    /// Cancellation is swallowed rather than reported: a user who dismissed the
-    /// browser does not need an alert telling them what they just chose.
-    private func authenticate(_ work: @escaping () async throws -> Void) {
-        isAuthenticating = true
-        Task {
-            defer { isAuthenticating = false }
-            do {
-                try await work()
-                Haptics.success()
-            } catch let failure as SocialSignInService.Failure {
-                if !failure.isCancellation {
-                    socialError = failure.errorDescription
-                    Haptics.error()
-                }
-            } catch {
-                socialError = error.userMessage
-                Haptics.error()
-            }
-        }
     }
 }
 

@@ -12,9 +12,12 @@ import SwiftUI
 /// and nothing would ever translate them. The app's most-read text would have
 /// been the one part guaranteed to stay English.
 ///
-/// Counts use the `^[...](inflect: true)` form rather than a hand-written
-/// `s`-or-nothing. English happens to pluralise by suffix; most languages do
-/// not, and the ternary version cannot express what they need.
+/// Counts are written as two separate strings, one per plural form, rather
+/// than with `^[...](inflect: true)`. The inflection markup is only expanded
+/// when the string resolves through a localization table, and with no String
+/// Catalog in the project it was reaching the screen verbatim —
+/// "^[2 day](inflect: true) overdue". Two keys is what a catalog will pick up
+/// as separate entries later, and it cannot leak markup in the meantime.
 enum Format {
 
     // MARK: - Deadlines
@@ -38,7 +41,9 @@ enum Format {
             }
             let days = calendar.dateComponents([.day], from: date, to: reference).day ?? 0
             if days < 30 {
-                return String(localized: "^[\(days) day](inflect: true) overdue")
+                return days == 1
+                    ? String(localized: "1 day overdue")
+                    : String(localized: "\(days) days overdue")
             }
             return String(localized: "Overdue · \(shortDate(date))")
         }
@@ -126,6 +131,8 @@ enum Format {
     /// interpret a slash.
     static func progressAccessible(done: Int, total: Int) -> String {
         if total == 0 { return String(localized: "Empty list") }
-        return String(localized: "\(done) of ^[\(total) item](inflect: true) completed")
+        return total == 1
+            ? String(localized: "\(done) of 1 item completed")
+            : String(localized: "\(done) of \(total) items completed")
     }
 }

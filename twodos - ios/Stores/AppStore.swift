@@ -175,8 +175,15 @@ final class AppStore {
 
         undoTimer = Task { [weak self] in
             try? await Task.sleep(for: Self.undoWindow)
-            guard !Task.isCancelled else { return }
-            await self?.commitPendingDeletion()
+            guard !Task.isCancelled, let self else { return }
+            // Let go of the handle *before* committing. `commitPendingDeletion`
+            // cancels `undoTimer`, and from in here that is this very task — the
+            // network request would then run inside a cancelled task and
+            // URLSession would throw, turning a deletion that was about to
+            // succeed into "we couldn't finish deleting". Whether it threw
+            // depended on timing, which is why it only happened sometimes.
+            self.undoTimer = nil
+            await self.commitPendingDeletion()
         }
     }
 
@@ -851,44 +858,29 @@ final class AppStore {
         }
     }
 
-    /// Deletes a list, with a window to take it back.
+    /// Deletes a list. The caller has already asked the user to confirm.
     ///
-    /// The API has no restore, so undo is bought by holding the request rather
-    /// than reversing it. The list leaves the screen immediately — the user
-    /// should never wait to see the result of a delete — and the server hears
-    /// about it once the window closes.
-    ///
-    /// This matters more now that a full swipe deletes a list outright, with no
-    /// confirmation step in between.
+    /// Every route here goes through `deleteListConfirmation`, so the decision
+    /// has been made by the time this runs and there is no undo window: the
+    /// list leaves the screen at once and the server is told at once. A
+    /// request that fails puts the list back where it was, so the screen never
+    /// disagrees with the server for longer than one round trip.
     func deleteList(id: String) async {
         guard let index = lists.firstIndex(where: { $0.id == id }) else { return }
         let removed = lists.remove(at: index)
         syncExternalSurfaces()
 
-        await offerUndo(
-            title: "Deleted “\(removed.label)”",
-            message: removed.totalCount > 0
-                ? "\(removed.totalCount) item\(removed.totalCount == 1 ? "" : "s") went with it."
-                : nil,
-            restore: { [weak self] in
-                guard let self else { return }
-                self.lists.insert(removed, at: min(index, self.lists.count))
-                self.syncExternalSurfaces()
-            },
-            commit: { [weak self] in
-                guard let self else { return }
-                do {
-                    _ = try await self.api.deleteList(id: id)
-                    self.cancelReminders(for: removed)
-                    self.location.invalidatePlan()
-                    await self.refreshPartners()
-                } catch {
-                    self.lists.insert(removed, at: min(index, self.lists.count))
-                    self.syncExternalSurfaces()
-                    self.report(error, whileDoing: "deleting the list")
-                }
-            }
-        )
+        do {
+            _ = try await api.deleteList(id: id)
+            cancelReminders(for: removed)
+            location.invalidatePlan()
+            Haptics.success()
+            await refreshPartners()
+        } catch {
+            lists.insert(removed, at: min(index, lists.count))
+            syncExternalSurfaces()
+            report(error, whileDoing: "deleting the list")
+        }
     }
 
     func respondToInvite(listId: String, accept: Bool) async {
@@ -1039,8 +1031,10 @@ final class AppStore {
         notifications.cancel(id: NotificationService.todoDeadlineID(listId: listId, todoId: todoId))
         syncExternalSurfaces()
 
-        // Same deferral as `deleteList`. An item is a smaller loss, but a full
-        // swipe deletes one without confirmation and the API cannot put it back.
+        // Deferred rather than sent at once: a full swipe deletes an item
+        // without confirmation and the API cannot put it back, so the undo
+        // window is what stands in for a dialog here. Lists take the opposite
+        // route — a confirmation first, then an immediate delete.
         await offerUndo(
             title: "Deleted “\(removed.title)”",
             restore: { [weak self] in

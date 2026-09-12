@@ -89,9 +89,10 @@ struct SocialSignInButtons: View {
 
 /// One provider button: a mark, a label, and nothing else.
 ///
-/// The label is centred with the mark pinned to the leading edge — the layout
-/// every provider's guidelines specify — rather than the two centred together,
-/// which would make the row of buttons jitter as the titles change length.
+/// The mark and the label are centred together as one group, which is how
+/// Apple's system button lays itself out — so the three buttons in the stack
+/// share one silhouette rather than two. Google's and Meta's guidelines both
+/// permit this arrangement alongside the leading-pinned one.
 private struct SocialButton<Mark: View>: View {
     var title: LocalizedStringKey
     var foreground: Color
@@ -102,11 +103,8 @@ private struct SocialButton<Mark: View>: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack {
-                HStack {
-                    mark()
-                    Spacer(minLength: 0)
-                }
+            HStack(spacing: 8) {
+                mark()
                 Text(title)
                     .font(.body.weight(.semibold))
             }

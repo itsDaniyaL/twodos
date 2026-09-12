@@ -24,6 +24,7 @@ struct ListCard: View {
     @Environment(AppStore.self) private var store
     @Environment(ThemeStore.self) private var theme
     @State private var showingOptions = false
+    @State private var confirmingDelete = false
 
     private var isPersonal: Bool { list.isEffectivelyPersonal(currentUserId: currentUserId) }
 
@@ -71,6 +72,9 @@ struct ListCard: View {
         .contextMenu { contextMenu } preview: { preview }
         .sheet(isPresented: $showingOptions) {
             ListOptionsSheet(listId: list.id)
+        }
+        .deleteListConfirmation(list, isPresented: $confirmingDelete, currentUserId: currentUserId) {
+            Task { await store.deleteList(id: list.id) }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
@@ -241,7 +245,7 @@ struct ListCard: View {
         Divider()
 
         Button(role: .destructive) {
-            Task { await store.deleteList(id: list.id) }
+            confirmingDelete = true
         } label: {
             Label("Delete list", systemImage: "trash")
         }

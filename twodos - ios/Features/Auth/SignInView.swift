@@ -13,6 +13,10 @@ struct SignInView: View {
     @State private var email = TokenStore.shared.lastSignedInEmail ?? ""
     @State private var password = ""
     @State private var isSubmitting = false
+    /// A social sign-in in flight. Kept apart from `isSubmitting` because the
+    /// two lock different controls: a browser round-trip should not spin the
+    /// "Sign in" button, and a password submit should not grey the social row.
+    @State private var isSocialSigningIn = false
     @State private var errorMessage: String?
     /// Shown once a sign-in has been rejected.
     ///
@@ -27,7 +31,7 @@ struct SignInView: View {
     @State private var showsRecoveryOptions = false
 
     private var canSubmit: Bool {
-        Validate.isValidEmail(email) && !password.isEmpty && !isSubmitting
+        Validate.isValidEmail(email) && !password.isEmpty && !isSubmitting && !isSocialSigningIn
     }
 
     var body: some View {
@@ -58,9 +62,25 @@ struct SignInView: View {
             PrimaryButton(title: "Sign in", isLoading: isSubmitting) { submit() }
                 .disabled(!canSubmit)
 
+            // The same providers the welcome screen offers, for the person who
+            // came here out of habit and only then remembered they never set a
+            // password. Errors land in the scaffold's banner rather than an
+            // alert so a failed social attempt reads the same way a wrong
+            // password does on this screen.
+            if store.hasSocialProviders {
+                AuthSeparator(title: "or continue with")
+                    .padding(.vertical, 2)
+
+                SocialSignInSection(isAuthenticating: $isSocialSigningIn) { message in
+                    withAnimation(Motion.content) { errorMessage = message }
+                }
+                .disabled(isSubmitting)
+            }
+
             SecondaryButton(title: "Create an account") {
                 path.append(AuthRoute.signUp)
             }
+            .disabled(isSocialSigningIn)
 
             if showsRecoveryOptions {
                 Button("I haven't verified my email yet") {
@@ -88,6 +108,11 @@ struct SignInView: View {
             .padding(.top, 6)
         }
         .navigationTitle("Sign in")
+        .task {
+            // Usually already cached by the welcome screen; this covers a cold
+            // launch that lands here directly, or a fetch that failed there.
+            if store.socialAuth == nil { await store.refreshSocialAuthConfig() }
+        }
     }
 
     private func submit() {
