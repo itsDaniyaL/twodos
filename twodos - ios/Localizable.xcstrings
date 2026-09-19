@@ -74,6 +74,9 @@
         }
       }
     },
+    "%lld days overdue" : {
+
+    },
     "%lld lists" : {
 
     },
@@ -93,6 +96,16 @@
         }
       }
     },
+    "%lld of %lld items completed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld items completed"
+          }
+        }
+      }
+    },
     "%lld of %lld tasks are in the challenge." : {
       "localizations" : {
         "en" : {
@@ -103,23 +116,16 @@
         }
       }
     },
-    "%lld of ^[%lld item](inflect: true) completed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld of ^[%2$lld item](inflect: true) completed"
-          }
-        }
-      }
+    "%lld of 1 item completed" : {
+
     },
     "%lld%%" : {
 
     },
-    "^[%lld day](inflect: true) overdue" : {
+    "+ %lld more" : {
 
     },
-    "+ %lld more" : {
+    "1 day overdue" : {
 
     },
     "1 hour" : {

@@ -1,79 +1,151 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "%@, %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@, %2$@"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "·" : {
+
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
           }
         }
       }
     },
-    "%@. %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$@. %2$@"
+    "%@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@"
           }
         }
       }
     },
-    "%lld": {},
-    "%lld due today": {},
-    "%lld min overdue": {},
-    "%lld of %lld done": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld of %2$lld done"
+    "%lld" : {
+
+    },
+    "%lld days overdue" : {
+
+    },
+    "%lld due today" : {
+
+    },
+    "%lld min overdue" : {
+
+    },
+    "%lld of %lld done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld done"
           }
         }
       }
     },
-    "%lld of ^[%lld item](inflect: true) completed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "%1$lld of ^[%2$lld item](inflect: true) completed"
+    "%lld of %lld items completed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld items completed"
           }
         }
       }
     },
-    "%lld overdue": {},
-    "All %lld done": {},
-    "All clear": {},
-    "Done": {},
-    "Due now": {},
-    "Empty list": {},
-    "How much is left, at a glance.": {},
-    "In %lld min": {},
-    "Item": {},
-    "Just now": {},
-    "Last seen %@": {},
-    "List": {},
-    "Marks a twodos item as done, or not done.": {},
-    "No items yet": {},
-    "Nothing outstanding": {},
-    "Offline": {},
-    "Open the app to sign in": {},
-    "Outstanding": {},
-    "Overdue since yesterday": {},
-    "Overdue · %@": {},
-    "Sign in to twodos": {},
-    "The most pressing thing outstanding.": {},
-    "Tick an item off": {},
-    "Today, %@": {},
-    "Tomorrow, %@": {},
-    "Up next": {},
-    "^[%lld day](inflect: true) overdue": {},
-    "open": {},
-    "twodos": {},
-    "·": {}
+    "%lld of 1 item completed" : {
+
+    },
+    "%lld overdue" : {
+
+    },
+    "1 day overdue" : {
+
+    },
+    "All %lld done" : {
+
+    },
+    "All clear" : {
+
+    },
+    "Done" : {
+
+    },
+    "Due now" : {
+
+    },
+    "Empty list" : {
+
+    },
+    "How much is left, at a glance." : {
+
+    },
+    "In %lld min" : {
+
+    },
+    "Item" : {
+
+    },
+    "Just now" : {
+
+    },
+    "Last seen %@" : {
+
+    },
+    "List" : {
+
+    },
+    "Marks a twodos item as done, or not done." : {
+
+    },
+    "No items yet" : {
+
+    },
+    "Nothing outstanding" : {
+
+    },
+    "Offline" : {
+
+    },
+    "open" : {
+
+    },
+    "Open the app to sign in" : {
+
+    },
+    "Outstanding" : {
+
+    },
+    "Overdue · %@" : {
+
+    },
+    "Overdue since yesterday" : {
+
+    },
+    "Sign in to twodos" : {
+
+    },
+    "The most pressing thing outstanding." : {
+
+    },
+    "Tick an item off" : {
+
+    },
+    "Today, %@" : {
+
+    },
+    "Tomorrow, %@" : {
+
+    },
+    "twodos" : {
+
+    },
+    "Up next" : {
+
+    }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }
