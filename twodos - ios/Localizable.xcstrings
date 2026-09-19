@@ -164,6 +164,9 @@
     "Add a few unfinished items to this list, then start a challenge." : {
 
     },
+    "Add a profile picture" : {
+
+    },
     "Add a reminder" : {
 
     },
@@ -174,6 +177,9 @@
 
     },
     "Add item" : {
+
+    },
+    "Add notes" : {
 
     },
     "Add some unfinished items first" : {
@@ -199,6 +205,9 @@
       }
     },
     "Adds an item to one of your twodos lists." : {
+
+    },
+    "Adds an optional line of detail to the new item" : {
 
     },
     "Alarm name" : {
@@ -285,6 +294,9 @@
     "Change password" : {
 
     },
+    "Change profile picture" : {
+
+    },
     "Change reminder" : {
 
     },
@@ -322,6 +334,15 @@
 
     },
     "Completed" : {
+
+    },
+    "Connect" : {
+
+    },
+    "Connect an account" : {
+
+    },
+    "Connected accounts…" : {
 
     },
     "Continue with email" : {
@@ -414,6 +435,9 @@
     "Edit name" : {
 
     },
+    "Edit notes" : {
+
+    },
     "Edit text" : {
 
     },
@@ -462,6 +486,9 @@
     "Getting your lists…" : {
 
     },
+    "Go" : {
+
+    },
     "Go to sign in" : {
 
     },
@@ -472,6 +499,9 @@
 
     },
     "Hide" : {
+
+    },
+    "Hide notes" : {
 
     },
     "Hide password" : {
@@ -502,6 +532,9 @@
 
     },
     "In an hour" : {
+
+    },
+    "In use" : {
 
     },
     "Invitations" : {
@@ -538,6 +571,9 @@
 
     },
     "Last seen %@" : {
+
+    },
+    "Linked" : {
 
     },
     "List" : {
@@ -615,7 +651,13 @@
     "New item" : {
 
     },
+    "New Item" : {
+
+    },
     "New list" : {
+
+    },
+    "New List…" : {
 
     },
     "Next week" : {
@@ -649,6 +691,25 @@
 
     },
     "Not urgent" : {
+
+    },
+    "Notes" : {
+
+    },
+    "Notes (optional)" : {
+
+    },
+    "Notes can be up to %lld characters — this is %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Notes can be up to %1$lld characters — this is %2$lld."
+          }
+        }
+      }
+    },
+    "Notes for the new item" : {
 
     },
     "Nothing found" : {
@@ -703,6 +764,9 @@
 
     },
     "Opens the list's details" : {
+
+    },
+    "Optional detail shown under the item" : {
 
     },
     "Options for %@" : {
@@ -769,6 +833,9 @@
 
     },
     "Reconnecting…" : {
+
+    },
+    "Refresh" : {
 
     },
     "Remind me" : {
@@ -847,6 +914,12 @@
 
     },
     "Set new password" : {
+
+    },
+    "Set password" : {
+
+    },
+    "Set up" : {
 
     },
     "Share a list with someone and they'll appear here. You can block or report anyone from this screen." : {
@@ -984,6 +1057,9 @@
     "twodos can only alert you at %@ while the app is open. Allowing background location means the reminder finds you even when twodos is closed." : {
 
     },
+    "twodos uses the picture from your Google or Facebook account, so partners can tell your lists apart at a glance. Connect one in Sign-in and security and it's picked up automatically." : {
+
+    },
     "Unblock" : {
 
     },
@@ -1011,7 +1087,13 @@
     "Use a different email" : {
 
     },
+    "Use my %@ picture" : {
+
+    },
     "Use my current location" : {
+
+    },
+    "Use my initials" : {
 
     },
     "Verification code" : {

@@ -302,7 +302,8 @@ final class AppStore {
             expiresAt: TokenStore.shared.accessExpiresAt,
             lists: lists,
             currentUserId: currentUserId,
-            partnerNames: partnerNames
+            partnerNames: partnerNames,
+            partnerAvatarURLs: partnerAvatarURLs
         )
         WidgetPublisher.publish(
             .make(
@@ -332,9 +333,8 @@ final class AppStore {
 
     /// partnerId → display name, for the watch payload. The watch has no
     /// partner directory, so names are resolved here.
-    private var partnerNames: [String: String] {
-        Dictionary(partners.map { ($0.id, $0.displayName) }, uniquingKeysWith: { first, _ in first })
-    }
+    private var partnerNames: [String: String] { WatchList.partnerLookups(partners).names }
+    private var partnerAvatarURLs: [String: String] { WatchList.partnerLookups(partners).avatars }
 
     private func watchPayload() -> [String: Any] {
         guard let token = TokenStore.shared.accessToken else {
@@ -347,7 +347,8 @@ final class AppStore {
         let snapshot = WatchList.snapshot(
             from: lists,
             currentUserId: currentUserId,
-            partnerNames: partnerNames
+            partnerNames: partnerNames,
+            partnerAvatarURLs: partnerAvatarURLs
         )
         if let data = try? JSONEncoder().encode(snapshot) {
             payload[WatchPayloadKey.lists] = data
@@ -441,12 +442,14 @@ final class AppStore {
 
     private func send(_ mutation: PendingMutation) async throws(APIError) {
         switch mutation.kind {
-        case .addTodo(let listId, _, let title):
-            _ = try await api.createTodo(listId: listId, title: title)
+        case .addTodo(let listId, _, let title, let notes):
+            _ = try await api.createTodo(listId: listId, title: title, notes: notes)
         case .setDone(let listId, let todoId, let done):
             _ = try await api.setTodoDone(listId: listId, todoId: todoId, done: done)
         case .renameTodo(let listId, let todoId, let title):
             _ = try await api.setTodoTitle(listId: listId, todoId: todoId, title: title)
+        case .setNotes(let listId, let todoId, let notes):
+            _ = try await api.setTodoNotes(listId: listId, todoId: todoId, notes: notes)
         case .deleteTodo(let listId, let todoId):
             _ = try await api.deleteTodo(listId: listId, todoId: todoId)
         }
@@ -897,8 +900,10 @@ final class AppStore {
 
     // MARK: - Todo mutations
 
-    func addTodo(listId: String, title: String) async {
+    /// `notes` is the optional detail behind the title; most adds have none.
+    func addTodo(listId: String, title: String, notes: String? = nil) async {
         guard let index = lists.firstIndex(where: { $0.id == listId }) else { return }
+        let notes = Todo.normalisedNotes(notes)
 
         // Insert a placeholder so the row appears instantly; the refresh below
         // swaps it for the server's version with a real id.
@@ -906,19 +911,20 @@ final class AppStore {
             id: "pending-\(UUID().uuidString)",
             listId: listId,
             title: title,
-            order: (lists[index].todos.map(\.order).max() ?? 0) + 1
+            order: (lists[index].todos.map(\.order).max() ?? 0) + 1,
+            notes: notes
         )
         lists[index].todos.append(placeholder)
         Haptics.light()
 
         do {
-            _ = try await api.createTodo(listId: listId, title: title)
+            _ = try await api.createTodo(listId: listId, title: title, notes: notes)
             await refreshList(id: listId)
         } catch {
             // Offline keeps the row and queues the write; anything else is a
             // real rejection and the row goes.
             guard !queueIfOffline(error, .addTodo(
-                listId: listId, localId: placeholder.id, title: title
+                listId: listId, localId: placeholder.id, title: title, notes: notes
             )) else {
                 syncExternalSurfaces()
                 return
@@ -1002,6 +1008,35 @@ final class AppStore {
             }
             lists[listIndex].todos[todoIndex] = previous
             report(error, whileDoing: "renaming the item")
+        }
+    }
+
+    /// Sets or clears the notes on one item. `nil` and an empty string both clear.
+    ///
+    /// Not routed through the refresh: the write touches one field, the local
+    /// copy already holds the same normalised value the server will store, and
+    /// a re-fetch would only make the row flicker.
+    func setTodoNotes(listId: String, todoId: String, notes: String?) async {
+        guard let listIndex = lists.firstIndex(where: { $0.id == listId }),
+              let todoIndex = lists[listIndex].todos.firstIndex(where: { $0.id == todoId })
+        else { return }
+
+        let notes = Todo.normalisedNotes(notes)
+        let previous = lists[listIndex].todos[todoIndex]
+        guard previous.notes != notes else { return }
+        lists[listIndex].todos[todoIndex].notes = notes
+        // The watch draws these too.
+        syncExternalSurfaces()
+
+        do {
+            _ = try await api.setTodoNotes(listId: listId, todoId: todoId, notes: notes)
+        } catch {
+            guard !queueIfOffline(error, .setNotes(
+                listId: listId, todoId: todoId, notes: notes
+            )) else { return }
+            lists[listIndex].todos[todoIndex] = previous
+            syncExternalSurfaces()
+            report(error, whileDoing: "saving the notes")
         }
     }
 
@@ -1398,9 +1433,16 @@ final class AppStore {
 
     func updateName(_ name: String) async throws(APIError) {
         _ = try await api.updateName(name)
-        if let user {
-            self.user = CurrentUser(id: user.id, name: name, email: user.email,
-                                    emailVerified: user.emailVerified, authProvider: user.authProvider)
+        user?.name = name
+    }
+
+    /// Re-reads `/me`. Cheap, and the only way to learn what the server
+    /// decided about a picture after a link — the adoption rules live there.
+    func refreshUser() async {
+        do {
+            user = try await api.currentUser()
+        } catch {
+            logger.debug("refreshUser failed: \(error.localizedDescription)")
         }
     }
 
@@ -1409,13 +1451,38 @@ final class AppStore {
         _ = try await api.changePassword(email: email, current: current, new: new)
     }
 
+    /// Connects a provider to this account from Settings. Throws so the
+    /// screen can show the server's reason — "already linked to another
+    /// account" is something the person needs to read, not a banner.
+    func linkSocial(provider: SocialProvider, token: String) async throws(APIError) {
+        _ = try await api.linkSocial(provider: provider, token: token)
+        await refreshSocialLinks()
+        // Linking may have given the account its picture.
+        await refreshUser()
+    }
+
     func unlinkSocial(provider: String) async {
         do {
             _ = try await api.unlinkSocial(provider: provider)
             socialLinks.removeAll { $0.provider == provider }
+            // Unlinking the provider the picture came from drops the picture.
+            await refreshUser()
         } catch {
             report(error, whileDoing: "unlinking \(provider)")
         }
+    }
+
+    /// Switches the profile picture to another linked provider's, or back to
+    /// initials with `nil`.
+    func chooseAvatar(provider: SocialProvider?) async throws(APIError) {
+        _ = try await api.chooseAvatar(provider: provider)
+        await refreshUser()
+    }
+
+    /// The linked providers whose picture could be used — what the profile
+    /// screen offers when the avatar is tapped.
+    var providersWithPictures: [SocialLink] {
+        socialLinks.filter(\.hasPicture)
     }
 
     func requestAccountDeletion(email: String) async throws(APIError) {

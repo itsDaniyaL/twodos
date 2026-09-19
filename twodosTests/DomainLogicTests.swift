@@ -166,6 +166,46 @@ struct WatchPayloadTests {
         #expect(snapshot.first?.partnerName == "Sam Okafor")
     }
 
+    @Test("The partner's picture travels as an absolute URL, with initials derived for the fallback")
+    func resolvesPartnerAvatar() {
+        let shared = list(id: "a", partnerId: "p1")
+        let lookups = WatchList.partnerLookups([
+            Partner(id: "p1", name: "Sam Okafor", email: "sam@example.com",
+                    status: APIConstants.InviteStatus.accepted,
+                    avatarUrl: "/api/v1/account/avatar/abc"),
+            Partner(id: "p2", name: "No Face", email: "none@example.com",
+                    status: APIConstants.InviteStatus.accepted),
+        ])
+        #expect(lookups.names == ["p1": "Sam Okafor", "p2": "No Face"])
+        // A bare path from the server is resolved against the API host here,
+        // so the watch never has to know where the API lives.
+        #expect(lookups.avatars["p1"]?.hasPrefix("https://") == true)
+        #expect(lookups.avatars["p1"]?.hasSuffix("/api/v1/account/avatar/abc") == true)
+        #expect(lookups.avatars["p2"] == nil, "no picture, no entry")
+
+        let snapshot = WatchList.snapshot(
+            from: [shared],
+            currentUserId: "me",
+            partnerNames: lookups.names,
+            partnerAvatarURLs: lookups.avatars
+        )
+        #expect(snapshot.first?.partnerAvatarUrl == lookups.avatars["p1"])
+        #expect(snapshot.first?.partnerAvatarURL != nil)
+        #expect(snapshot.first?.partnerInitials == "SO")
+    }
+
+    @Test("A watch on the previous build still decodes a payload that carries pictures")
+    func legacyWatchDecodesNewPayload() throws {
+        // And the other way round: a payload without the field decodes to nil.
+        let legacy = Data("""
+        [{"id":"a","label":"Shop","tintIndex":0,"items":[],"dueAt":null,"isShared":true,"isFavorite":false,
+          "partnerName":"Sam Okafor"}]
+        """.utf8)
+        let decoded = try JSONDecoder().decode([WatchList].self, from: legacy)
+        #expect(decoded.first?.partnerAvatarUrl == nil)
+        #expect(decoded.first?.partnerInitials == "SO")
+    }
+
     @Test("A personal list carries no partner name even if an id lingers")
     func personalListHasNoPartnerName() {
         let personal = list(id: "a", partnerId: "me")

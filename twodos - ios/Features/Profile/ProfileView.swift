@@ -9,6 +9,8 @@ struct ProfileView: View {
     @State private var isEditingName = false
     @State private var draftName = ""
     @State private var confirmingSignOut = false
+    /// Shown when the avatar is tapped with nothing to pick from.
+    @State private var isPromptingForPicture = false
 
     enum Route: Hashable {
         case appearance, notifications, partners, security, about, deleteAccount
@@ -36,6 +38,15 @@ struct ProfileView: View {
             }
             .navigationTitle("You")
             .refreshable { await store.refreshAll() }
+            // The avatar's menu depends on which connected accounts have a
+            // picture, which `refreshAll` does not fetch.
+            .task { await store.refreshSocialLinks() }
+            .alert("Add a profile picture", isPresented: $isPromptingForPicture) {
+                Button("Connect an account") { path.append(Route.security) }
+                Button("Not now", role: .cancel) {}
+            } message: {
+                Text("twodos uses the picture from your Google or Facebook account, so partners can tell your lists apart at a glance. Connect one in Sign-in and security and it's picked up automatically.")
+            }
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .appearance: AppearanceSettingsView()
@@ -72,7 +83,7 @@ struct ProfileView: View {
     private var identityCard: some View {
         GlassCard {
             VStack(spacing: 12) {
-                AvatarView(initials: store.user?.initials ?? "?", size: 76)
+                avatarButton
                     .padding(.top, 6)
 
                 VStack(spacing: 3) {
@@ -106,6 +117,67 @@ struct ProfileView: View {
             .padding(Metrics.cardPadding)
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// Tapping the picture is how it gets changed.
+    ///
+    /// Pictures are borrowed from connected accounts rather than uploaded, so
+    /// what the tap does depends on what is connected: with a Google or
+    /// Facebook account that has one, it is a menu of which to use; without,
+    /// it is a short explanation and a way to the screen that connects one.
+    /// Someone who signed in with Google never sees either — their picture
+    /// was on from the first sign-in.
+    @ViewBuilder
+    private var avatarButton: some View {
+        let avatar = AvatarView(
+            initials: store.user?.initials ?? "?",
+            imageURL: store.user?.avatarURL,
+            size: 76
+        )
+        .overlay(alignment: .bottomTrailing) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Color.accentColor))
+                .overlay { Circle().strokeBorder(Color(.systemBackground), lineWidth: 2) }
+                .accessibilityHidden(true)
+        }
+
+        if store.providersWithPictures.isEmpty {
+            Button { isPromptingForPicture = true } label: { avatar }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add a profile picture")
+        } else {
+            Menu {
+                ForEach(store.providersWithPictures) { link in
+                    Button {
+                        Task { try? await store.chooseAvatar(provider: link.socialProvider) }
+                    } label: {
+                        Label(
+                            "Use my \(link.displayName) picture",
+                            systemImage: store.user?.avatarProvider == link.provider ? "checkmark" : link.icon
+                        )
+                    }
+                }
+                if store.user?.avatarUrl != nil {
+                    Button {
+                        Task { try? await store.chooseAvatar(provider: nil) }
+                    } label: {
+                        Label("Use my initials", systemImage: "textformat")
+                    }
+                }
+                Divider()
+                Button {
+                    path.append(Route.security)
+                } label: {
+                    Label("Connected accounts…", systemImage: "link")
+                }
+            } label: {
+                avatar
+            }
+            .accessibilityLabel("Change profile picture")
+        }
     }
 
     /// A little at-a-glance summary. It costs nothing — the data is already

@@ -27,6 +27,14 @@ struct WatchList: Codable, Identifiable, Hashable, Sendable {
     var partnerName: String?
     /// Phrased for the wrist, e.g. "Arrive at Tesco Metro".
     var locationLabel: String?
+    /// The partner's profile picture, as an absolute URL, or nil for none.
+    ///
+    /// A URL rather than bytes: the application context has a hard size
+    /// ceiling and one JPEG would spend most of it. The URL is public and
+    /// immutable on the server, so the watch loads it once with a plain
+    /// `AsyncImage` and the system cache keeps it — the same mechanism the
+    /// phone uses, and one that costs the payload thirty bytes.
+    var partnerAvatarUrl: String?
 
     // Defaulted so a watch still running the previous build can decode a
     // payload from the newer phone rather than dropping every list.
@@ -39,7 +47,8 @@ struct WatchList: Codable, Identifiable, Hashable, Sendable {
         isShared: Bool,
         isFavorite: Bool,
         partnerName: String? = nil,
-        locationLabel: String? = nil
+        locationLabel: String? = nil,
+        partnerAvatarUrl: String? = nil
     ) {
         self.id = id
         self.label = label
@@ -50,6 +59,19 @@ struct WatchList: Codable, Identifiable, Hashable, Sendable {
         self.isFavorite = isFavorite
         self.partnerName = partnerName
         self.locationLabel = locationLabel
+        self.partnerAvatarUrl = partnerAvatarUrl
+    }
+
+    var partnerAvatarURL: URL? { partnerAvatarUrl.flatMap(URL.init(string:)) }
+
+    /// Initials for the partner, for the moment before the picture loads and
+    /// for partners who have none. Derived here so the watch needs no
+    /// name-parsing of its own.
+    var partnerInitials: String? {
+        guard let partnerName else { return nil }
+        let parts = partnerName.split(separator: " ").prefix(2)
+        if parts.count == 2 { return parts.map { String($0.prefix(1)) }.joined().uppercased() }
+        return String(partnerName.prefix(1)).uppercased()
     }
 
     var openCount: Int { items.count { !$0.done } }
@@ -69,6 +91,19 @@ struct WatchItem: Codable, Identifiable, Hashable, Sendable {
     let title: String
     var done: Bool
     let dueAt: Date?
+    /// The item's notes, read-only on the wrist. Capped on the phone side so a
+    /// long note on every item cannot push the payload past the context limit.
+    var notes: String?
+
+    // Defaulted so a watch on the previous build still decodes a payload from a
+    // phone that now sends notes — the same rule `WatchList` follows.
+    init(id: String, title: String, done: Bool, dueAt: Date?, notes: String? = nil) {
+        self.id = id
+        self.title = title
+        self.done = done
+        self.dueAt = dueAt
+        self.notes = notes
+    }
 
     var isOverdue: Bool {
         guard !done, let dueAt else { return false }
@@ -76,9 +111,29 @@ struct WatchItem: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+extension WatchItem {
+    /// Enough for a watch to show what the note says; the phone has the rest.
+    /// Forty items at this length is still comfortably inside the application
+    /// context budget with twenty-five lists.
+    static let notesLimit = 200
+}
+
 // MARK: - Building the payload
 
 extension WatchList {
+    /// `partnerNames` and `partnerAvatarURLs` for `snapshot(from:…)`, from a
+    /// partners list. Shared by the phone's push and the watch's own refresh so
+    /// both resolve a partner the same way. Avatar URLs are made absolute here,
+    /// because the watch must not have to know the API host to draw a face.
+    static func partnerLookups(_ partners: [Partner]) -> (names: [String: String], avatars: [String: String]) {
+        let names = Dictionary(partners.map { ($0.id, $0.displayName) }, uniquingKeysWith: { first, _ in first })
+        let avatars = Dictionary(
+            partners.compactMap { partner in partner.avatarURL.map { (partner.id, $0.absoluteString) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return (names, avatars)
+    }
+
     /// Builds the watch payload from the phone's full model.
     ///
     /// Archived lists and lists with an unanswered invite are dropped: neither
@@ -86,7 +141,8 @@ extension WatchList {
     static func snapshot(
         from lists: [TodoList],
         currentUserId: String?,
-        partnerNames: [String: String] = [:]
+        partnerNames: [String: String] = [:],
+        partnerAvatarURLs: [String: String] = [:]
     ) -> [WatchList] {
         lists
             .filter { !$0.archived && !($0.isPendingInvite && $0.createdBy != currentUserId) }
@@ -108,7 +164,15 @@ extension WatchList {
                     items: list.todos
                         .sorted { !$0.done && $1.done }
                         .prefix(40)
-                        .map { WatchItem(id: $0.id, title: $0.title, done: $0.done, dueAt: $0.doBefore) },
+                        .map {
+                            WatchItem(
+                                id: $0.id,
+                                title: $0.title,
+                                done: $0.done,
+                                dueAt: $0.doBefore,
+                                notes: $0.notes.map { String($0.prefix(WatchItem.notesLimit)) }
+                            )
+                        },
                     dueAt: list.doBefore,
                     isShared: !list.isEffectivelyPersonal(currentUserId: currentUserId),
                     isFavorite: list.favorite,
@@ -117,7 +181,10 @@ extension WatchList {
                         : list.partnerId.flatMap { partnerNames[$0] },
                     locationLabel: list.hasLocation
                         ? "\(list.trigger.shortTitle) at \(list.locationName ?? "a saved place")"
-                        : nil
+                        : nil,
+                    partnerAvatarUrl: list.isEffectivelyPersonal(currentUserId: currentUserId)
+                        ? nil
+                        : list.partnerId.flatMap { partnerAvatarURLs[$0] }
                 )
             }
     }

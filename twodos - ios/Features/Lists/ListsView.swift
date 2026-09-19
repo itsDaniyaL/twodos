@@ -9,6 +9,7 @@ enum ListRoute: Hashable {
 struct ListsView: View {
     @Binding var path: [ListRoute]
     @Environment(AppStore.self) private var store
+    @Environment(AppCommands.self) private var commands
     /// iPad and a landscape iPhone Pro Max get a sidebar; everything else keeps
     /// the stack. Read rather than assumed, so a Slide Over window — which is
     /// compact on an iPad — gets the phone layout it actually has room for.
@@ -47,6 +48,10 @@ struct ListsView: View {
             ))
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        }
+        // ⌘N. `MainTabView` has already switched to this tab.
+        .onChange(of: commands.newListRequests) { _, _ in
+            showingCreateSheet = true
         }
     }
 

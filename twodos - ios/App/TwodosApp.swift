@@ -60,6 +60,7 @@ struct TwodosApp: App {
     @State private var notificationSettings = NotificationSettingsStore.shared
     @State private var notifications = NotificationService.shared
     @State private var location = LocationService.shared
+    @State private var commands = AppCommands()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -75,6 +76,7 @@ struct TwodosApp: App {
                 .environment(notificationSettings)
                 .environment(notifications)
                 .environment(location)
+                .environment(commands)
                 .task {
                     Haptics.prepare()
                     await store.start()
@@ -111,6 +113,14 @@ struct TwodosApp: App {
                         Task { await store.commitPendingDeletion() }
                     }
                 }
+        }
+        // The menu bar on a Mac, the ⌘ overlay on an iPad. See `AppCommands`.
+        .commands {
+            TwodosCommands(
+                commands: commands,
+                isSignedIn: store.phase == .signedIn,
+                hasOpenList: commands.openListId != nil
+            )
         }
     }
 }

@@ -9,6 +9,7 @@ import SwiftUI
 /// notification badge live where iOS users look for it.
 struct MainTabView: View {
     @Environment(AppStore.self) private var store
+    @Environment(AppCommands.self) private var commands
     /// Requests arriving from Siri and Shortcuts, which may run before this view
     /// exists.
     @State private var intentNavigation = IntentNavigation.shared
@@ -83,6 +84,28 @@ struct MainTabView: View {
             selection = .lists
             listsPath = [.detail(listId)]
             store.pendingListToOpen = nil
+        }
+        // Menu bar and keyboard. The tab is the one thing this view owns; the
+        // views inside each tab watch the same signals for what is theirs.
+        .onChange(of: commands.tabRequest) { _, request in
+            guard let request else { return }
+            selection = request.tab
+        }
+        .onChange(of: commands.searchRequests) { _, _ in selection = .search }
+        .onChange(of: commands.newListRequests) { _, _ in selection = .lists }
+        .onChange(of: commands.refreshRequests) { _, _ in
+            Task { await refreshCurrentTab() }
+        }
+    }
+
+    /// ⌘R refreshes what is on screen, the way pull-to-refresh on that screen
+    /// would have. Alarms is the one tab `refreshAll` does not cover.
+    private func refreshCurrentTab() async {
+        switch selection {
+        case .alarms:
+            await store.refreshAlarms()
+        case .lists, .activity, .profile, .search:
+            await store.refreshAll()
         }
     }
 

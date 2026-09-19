@@ -25,13 +25,17 @@ extension WatchStore {
             WatchList(
                 id: "l1", label: "Weekly shop", tintIndex: 5,
                 items: [
-                    WatchItem(id: "i1", title: "Oat milk", done: false, dueAt: nil),
+                    WatchItem(id: "i1", title: "Oat milk", done: false, dueAt: nil,
+                              notes: "Oat, not almond — the barista one if they have it"),
                     WatchItem(id: "i2", title: "Sourdough", done: false, dueAt: nil),
                     WatchItem(id: "i3", title: "Washing-up liquid and a new sponge",
                               done: false, dueAt: .now.addingTimeInterval(-3600)),
                     WatchItem(id: "i4", title: "Coffee beans", done: true, dueAt: nil)
                 ],
-                dueAt: nil, isShared: true, isFavorite: false
+                dueAt: nil, isShared: true, isFavorite: false,
+                // A partner with no picture: the initials path in the row and
+                // the header, which is the common case.
+                partnerName: "Sam Okafor"
             ),
             WatchList(
                 id: "l2", label: "Flat admin", tintIndex: 2,

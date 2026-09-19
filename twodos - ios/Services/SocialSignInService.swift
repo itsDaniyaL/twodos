@@ -70,6 +70,28 @@ final class SocialSignInService: NSObject {
         }
     }
 
+    // MARK: - Apple
+
+    /// Presents Apple's native sheet and resolves with the identity token.
+    ///
+    /// The sign-in screens use SwiftUI's `SignInWithAppleButton`, which owns
+    /// its own presentation. Settings needs the same sheet from an ordinary
+    /// "Connect" button in a row, so this drives `ASAuthorizationController`
+    /// directly. Same request, same credential, same server endpoint.
+    func appleIdentityToken() async throws -> (token: String, name: String?) {
+        let request = ASAuthorizationAppleIDProvider().createRequest()
+        request.requestedScopes = [.fullName, .email]
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        let relay = AppleAuthorizationRelay()
+        controller.delegate = relay
+        controller.presentationContextProvider = self
+        // The relay must outlive the sheet; the continuation holds it.
+        return try await withCheckedThrowingContinuation { continuation in
+            relay.continuation = continuation
+            controller.performRequests()
+        }
+    }
+
     // MARK: - Google
 
     /// Authorisation code + PKCE, exchanged for an `id_token`.
@@ -329,13 +351,60 @@ final class SocialSignInService: NSObject {
     }
 }
 
+// MARK: - Apple delegate
+
+/// Turns the delegate callbacks of one Apple authorisation into a result.
+///
+/// A separate object rather than the service itself, because the service may
+/// have a browser session in flight at the same time and the two must not
+/// share a continuation.
+@MainActor
+private final class AppleAuthorizationRelay: NSObject, ASAuthorizationControllerDelegate {
+    var continuation: CheckedContinuation<(token: String, name: String?), Error>?
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let data = credential.identityToken,
+              let token = String(data: data, encoding: .utf8) else {
+            continuation?.resume(throwing: SocialSignInService.Failure.malformedResponse)
+            continuation = nil
+            return
+        }
+        // Apple supplies the name exactly once, on the first authorisation.
+        let name = [credential.fullName?.givenName, credential.fullName?.familyName]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        continuation?.resume(returning: (token, name.isEmpty ? nil : name))
+        continuation = nil
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: any Error) {
+        let isCancel = (error as? ASAuthorizationError)?.code == .canceled
+        continuation?.resume(throwing: isCancel
+            ? SocialSignInService.Failure.cancelled
+            : SocialSignInService.Failure.providerRejected("Apple sign-in didn't complete. Please try again."))
+        continuation = nil
+    }
+}
+
 // MARK: - Presentation anchor
+
+extension SocialSignInService: ASAuthorizationControllerPresentationContextProviding {
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        keyWindowAnchor()
+    }
+}
 
 extension SocialSignInService: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        // The key window of the active foreground scene. When there isn't one
-        // the flow could not have been started by a tap, so an empty anchor is
-        // the honest answer rather than a crash.
+        keyWindowAnchor()
+    }
+
+    /// The key window of the active foreground scene. When there isn't one
+    /// the flow could not have been started by a tap, so an empty anchor is
+    /// the honest answer rather than a crash. Shared by the browser session
+    /// and Apple's sheet, which want the same window.
+    private func keyWindowAnchor() -> ASPresentationAnchor {
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive }

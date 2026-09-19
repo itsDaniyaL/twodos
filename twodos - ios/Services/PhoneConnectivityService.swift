@@ -56,7 +56,8 @@ final class PhoneConnectivityService: NSObject {
         expiresAt: Date?,
         lists: [TodoList],
         currentUserId: String?,
-        partnerNames: [String: String] = [:]
+        partnerNames: [String: String] = [:],
+        partnerAvatarURLs: [String: String] = [:]
     ) {
         let session = WCSession.default
         guard session.activationState == .activated, session.isPaired,
@@ -72,7 +73,8 @@ final class PhoneConnectivityService: NSObject {
             let snapshot = WatchList.snapshot(
                 from: lists,
                 currentUserId: currentUserId,
-                partnerNames: partnerNames
+                partnerNames: partnerNames,
+                partnerAvatarURLs: partnerAvatarURLs
             )
             if let data = try? JSONEncoder().encode(snapshot) {
                 payload[WatchPayloadKey.lists] = data

@@ -200,10 +200,17 @@ struct WatchListRow: View {
                     .foregroundStyle(.tertiary)
             }
 
+            // Who it is shared with, as their face where there is one. Faster
+            // to read than a glyph, and the same mark the phone puts on the
+            // card, so the two devices agree on what a shared list looks like.
             if list.isShared {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+                if let initials = list.partnerInitials {
+                    WatchAvatarView(initials: initials, imageURL: list.partnerAvatarURL, size: 16, tint: tint)
+                } else {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.vertical, 2)
@@ -279,10 +286,22 @@ struct WatchItemRow: View {
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
-                    } else if let due = item.dueAt {
-                        Text(WatchFormat.relativeDeadline(due))
-                            .font(.caption2)
-                            .foregroundStyle(item.isOverdue ? Brand.danger : .secondary)
+                    } else {
+                        if let due = item.dueAt {
+                            Text(WatchFormat.relativeDeadline(due))
+                                .font(.caption2)
+                                .foregroundStyle(item.isOverdue ? Brand.danger : .secondary)
+                        }
+                        // Read-only here: the wrist is for seeing what the note
+                        // says, not for writing it. Two lines is what fits under
+                        // a title without the carousel row turning into a card.
+                        if let notes = item.notes {
+                            Text(notes)
+                                .font(.caption2)
+                                .foregroundStyle(item.done ? .tertiary : .secondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                        }
                     }
                 }
 
@@ -292,7 +311,7 @@ struct WatchItemRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(item.title)
+        .accessibilityLabel(item.notes.map { "\(item.title), \($0)" } ?? item.title)
         .accessibilityValue(item.done ? "Completed" : "Not completed")
         .accessibilityHint(item.done ? "Marks as not done" : "Marks as done")
     }

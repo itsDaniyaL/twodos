@@ -18,13 +18,24 @@ struct AuthSession: Decodable, Sendable {
 
 struct CurrentUser: Decodable, Identifiable, Equatable, Sendable {
     let id: String?
-    let name: String?
+    var name: String?
     let email: String?
     var emailVerified: Bool = false
+    /// How the account was first created. History, not capability — see
+    /// `hasPassword` and the social links for what can sign in today.
     let authProvider: String?
+    /// Whether email + password is a working way into this account. False for
+    /// an account created with Google, Apple or Facebook that has never set a
+    /// password; "Forgot password" is how it gets one.
+    var hasPassword: Bool
+    /// The profile picture, or nil for initials. Pictures only ever come from
+    /// a linked provider — there is no upload — so this is nil until one is.
+    var avatarUrl: String?
+    /// Which linked provider the picture was taken from.
+    var avatarProvider: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, email, emailVerified, authProvider
+        case id, name, email, emailVerified, authProvider, hasPassword, avatarUrl, avatarProvider
     }
 
     init(from decoder: Decoder) throws {
@@ -34,15 +45,29 @@ struct CurrentUser: Decodable, Identifiable, Equatable, Sendable {
         email = try c.decodeIfPresent(String.self, forKey: .email)
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? false
         authProvider = try c.decodeIfPresent(String.self, forKey: .authProvider)
+        // A server too old to say assumes the pre-social world, where every
+        // account had a password unless it was born social.
+        hasPassword = try c.decodeIfPresent(Bool.self, forKey: .hasPassword)
+            ?? (authProvider == nil || authProvider == "email")
+        avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        avatarProvider = try c.decodeIfPresent(String.self, forKey: .avatarProvider)
     }
 
-    init(id: String?, name: String?, email: String?, emailVerified: Bool = false, authProvider: String? = nil) {
+    init(id: String?, name: String?, email: String?, emailVerified: Bool = false, authProvider: String? = nil,
+         hasPassword: Bool = true, avatarUrl: String? = nil, avatarProvider: String? = nil) {
         self.id = id
         self.name = name
         self.email = email
         self.emailVerified = emailVerified
         self.authProvider = authProvider
+        self.hasPassword = hasPassword
+        self.avatarUrl = avatarUrl
+        self.avatarProvider = avatarProvider
     }
+
+    /// The picture as something an image view can load. `avatarUrl` may be
+    /// a bare path when the deployment does not know its own origin.
+    var avatarURL: URL? { APIClient.resolve(avatarUrl) }
 
     /// First name, or the part of the email before the `@`. Used for greetings
     /// and presence text where a full name would be too formal.
@@ -68,8 +93,11 @@ struct Partner: Decodable, Identifiable, Equatable, Hashable, Sendable {
     var emailVerified: Bool = false
     /// `TODOS::INVITE_STATUS::…`
     let status: String?
+    /// Their profile picture, or nil for initials. What tells two people's
+    /// lists apart on a card.
+    var avatarUrl: String?
 
-    enum CodingKeys: String, CodingKey { case id, name, email, emailVerified, status }
+    enum CodingKeys: String, CodingKey { case id, name, email, emailVerified, status, avatarUrl }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -78,15 +106,20 @@ struct Partner: Decodable, Identifiable, Equatable, Hashable, Sendable {
         email = try c.decodeIfPresent(String.self, forKey: .email) ?? ""
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? false
         status = try c.decodeIfPresent(String.self, forKey: .status)
+        avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
     }
 
-    init(id: String, name: String?, email: String, emailVerified: Bool = false, status: String? = nil) {
+    init(id: String, name: String?, email: String, emailVerified: Bool = false, status: String? = nil,
+         avatarUrl: String? = nil) {
         self.id = id
         self.name = name
         self.email = email
         self.emailVerified = emailVerified
         self.status = status
+        self.avatarUrl = avatarUrl
     }
+
+    var avatarURL: URL? { APIClient.resolve(avatarUrl) }
 
     var displayName: String { name?.isEmpty == false ? name! : email }
 
@@ -104,8 +137,29 @@ struct SocialLink: Decodable, Identifiable, Equatable, Sendable {
     let provider: String
     let providerEmail: String
     let linkedAt: Date
+    /// Whether this provider gave us a picture — whether "use this picture" is
+    /// an option. Never true for Apple. Defaults false for an older server.
+    var hasPicture: Bool = false
+
+    enum CodingKeys: String, CodingKey { case provider, providerEmail, linkedAt, hasPicture }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        provider = try c.decode(String.self, forKey: .provider)
+        providerEmail = try c.decodeIfPresent(String.self, forKey: .providerEmail) ?? ""
+        linkedAt = try c.decodeIfPresent(Date.self, forKey: .linkedAt) ?? .distantPast
+        hasPicture = try c.decodeIfPresent(Bool.self, forKey: .hasPicture) ?? false
+    }
+
+    init(provider: String, providerEmail: String, linkedAt: Date, hasPicture: Bool = false) {
+        self.provider = provider
+        self.providerEmail = providerEmail
+        self.linkedAt = linkedAt
+        self.hasPicture = hasPicture
+    }
 
     var id: String { provider }
+    var socialProvider: SocialProvider? { SocialProvider(rawValue: provider.lowercased()) }
 
     var displayName: String {
         switch provider.lowercased() {
@@ -119,6 +173,8 @@ struct SocialLink: Decodable, Identifiable, Equatable, Sendable {
     var icon: String {
         switch provider.lowercased() {
         case "apple": "apple.logo"
+        case "google": "g.circle"
+        case "facebook": "f.circle"
         default: "person.badge.key"
         }
     }
@@ -134,6 +190,15 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
     var order: Int
     var doBefore: Date?
     var updatedAt: Date?
+
+    /// Optional long-form detail behind the title — the wire calls it
+    /// `description`, which is a name Swift already has opinions about.
+    ///
+    /// `nil` is the only "no notes" state that reaches this model: the server
+    /// trims and stores an empty or whitespace-only value as null, so a row
+    /// never has to check both. Rendered as a preview under the title and in
+    /// full in the editor; a task without notes draws exactly what it did before.
+    var notes: String?
 
     // MARK: Per-item location
     //
@@ -170,6 +235,7 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, listId, title, done, order, doBefore, updatedAt, updatedBy, assigneeId
         case challengeId, completedBy
+        case notes = "description"
         case locationName, locationLat, locationLng, locationRadius
         case locationTriggerValue = "locationTrigger"
     }
@@ -183,6 +249,7 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
         order = try c.decodeIfPresent(Int.self, forKey: .order) ?? 0
         doBefore = try c.decodeIfPresent(Date.self, forKey: .doBefore)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
+        notes = Self.normalisedNotes(try c.decodeIfPresent(String.self, forKey: .notes))
         updatedBy = try c.decodeIfPresent(String.self, forKey: .updatedBy)
         assigneeId = try c.decodeIfPresent(String.self, forKey: .assigneeId)
         challengeId = try c.decodeIfPresent(String.self, forKey: .challengeId)
@@ -196,7 +263,7 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
 
     init(id: String, listId: String, title: String, done: Bool = false, order: Int = 0,
          doBefore: Date? = nil, updatedAt: Date? = nil, updatedBy: String? = nil,
-         assigneeId: String? = nil,
+         assigneeId: String? = nil, notes: String? = nil,
          locationName: String? = nil, locationLat: Double? = nil, locationLng: Double? = nil,
          locationRadius: Double? = nil, locationTriggerValue: String? = nil) {
         self.id = id
@@ -206,6 +273,7 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
         self.order = order
         self.doBefore = doBefore
         self.updatedAt = updatedAt
+        self.notes = Self.normalisedNotes(notes)
         self.updatedBy = updatedBy
         self.assigneeId = assigneeId
         self.locationName = locationName
@@ -222,6 +290,17 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
 
     var hasLocation: Bool { locationLat != nil && locationLng != nil }
     var trigger: GeofenceTrigger { GeofenceTrigger(apiValue: locationTriggerValue) }
+
+    var hasNotes: Bool { notes != nil }
+
+    /// The same collapse the server applies, so a value typed here and one
+    /// read back from the API compare equal and an optimistic edit never
+    /// flickers when the refresh lands.
+    static func normalisedNotes(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
 }
 
 /// A time-boxed race between the two people on a list.

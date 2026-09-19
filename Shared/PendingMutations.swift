@@ -29,27 +29,37 @@ struct PendingMutation: Codable, Equatable, Sendable, Identifiable {
     enum Kind: Codable, Equatable, Sendable {
         /// `localId` is the placeholder the app invented; the server has never
         /// seen it and will assign its own on replay.
-        case addTodo(listId: String, localId: String, title: String)
+        ///
+        /// `notes` defaults to nil so a log written by a build that predates
+        /// the field still decodes — the synthesised decoder treats a missing
+        /// optional as absent rather than as a corrupt entry.
+        case addTodo(listId: String, localId: String, title: String, notes: String? = nil)
         case setDone(listId: String, todoId: String, done: Bool)
         case renameTodo(listId: String, todoId: String, title: String)
+        /// `nil` clears. Typed text, so it gets the same "keep it, send it
+        /// later" treatment as a rename — a note written in a tunnel is worth
+        /// more than a tick.
+        case setNotes(listId: String, todoId: String, notes: String?)
         case deleteTodo(listId: String, todoId: String)
     }
 
     /// The item this mutation is about, whether real or still local.
     var targetId: String {
         switch kind {
-        case .addTodo(_, let localId, _): localId
+        case .addTodo(_, let localId, _, _): localId
         case .setDone(_, let todoId, _): todoId
         case .renameTodo(_, let todoId, _): todoId
+        case .setNotes(_, let todoId, _): todoId
         case .deleteTodo(_, let todoId): todoId
         }
     }
 
     var listId: String {
         switch kind {
-        case .addTodo(let listId, _, _): listId
+        case .addTodo(let listId, _, _, _): listId
         case .setDone(let listId, _, _): listId
         case .renameTodo(let listId, _, _): listId
+        case .setNotes(let listId, _, _): listId
         case .deleteTodo(let listId, _): listId
         }
     }
@@ -94,11 +104,23 @@ enum PendingMutationLog {
             // Renaming a pending addition rewrites the addition. Queueing a
             // rename against an id the server will never issue would guarantee a
             // failed request on replay.
-            if let index = out.firstIndex(where: { $0.isLocalAddition && $0.targetId == target }) {
-                out[index].kind = .addTodo(listId: listId, localId: target, title: title)
+            if let index = out.firstIndex(where: { $0.isLocalAddition && $0.targetId == target }),
+               case .addTodo(_, _, _, let notes) = out[index].kind {
+                out[index].kind = .addTodo(listId: listId, localId: target, title: title, notes: notes)
                 return out
             }
             out.removeAll { if case .renameTodo(_, let id, _) = $0.kind { return id == target } else { return false } }
+            out.append(new)
+
+        case .setNotes(let listId, _, let notes):
+            // Same shape as a rename: notes on a pending addition travel with
+            // the addition, and only the latest notes on a real item are sent.
+            if let index = out.firstIndex(where: { $0.isLocalAddition && $0.targetId == target }),
+               case .addTodo(_, _, let title, _) = out[index].kind {
+                out[index].kind = .addTodo(listId: listId, localId: target, title: title, notes: notes)
+                return out
+            }
+            out.removeAll { if case .setNotes(_, let id, _) = $0.kind { return id == target } else { return false } }
             out.append(new)
 
         case .deleteTodo:

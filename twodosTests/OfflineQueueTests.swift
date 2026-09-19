@@ -11,8 +11,11 @@ import Testing
 @Suite("Offline queue")
 struct OfflineQueueTests {
 
-    private func add(_ localId: String, _ title: String, list: String = "l1") -> PendingMutation {
-        PendingMutation(kind: .addTodo(listId: list, localId: localId, title: title))
+    private func add(_ localId: String, _ title: String, notes: String? = nil, list: String = "l1") -> PendingMutation {
+        PendingMutation(kind: .addTodo(listId: list, localId: localId, title: title, notes: notes))
+    }
+    private func notes(_ id: String, _ value: String?, list: String = "l1") -> PendingMutation {
+        PendingMutation(kind: .setNotes(listId: list, todoId: id, notes: value))
     }
     private func done(_ id: String, _ value: Bool = true, list: String = "l1") -> PendingMutation {
         PendingMutation(kind: .setDone(listId: list, todoId: id, done: value))
@@ -60,13 +63,61 @@ struct OfflineQueueTests {
     func renameFoldsIntoAdd() {
         // Queueing a rename against a local placeholder id would guarantee a
         // failed request: the server never issued that id.
-        let log = fold([add("local-1", "Milk"), rename("local-1", "Oat milk")])
+        let log = fold([add("local-1", "Milk", notes: "Semi-skimmed"), rename("local-1", "Oat milk")])
         #expect(log.count == 1)
-        if case .addTodo(_, let localId, let title) = log[0].kind {
+        if case .addTodo(_, let localId, let title, let notes) = log[0].kind {
             #expect(localId == "local-1")
             #expect(title == "Oat milk", "The add should carry the final name")
+            #expect(notes == "Semi-skimmed", "A rename must not drop the notes the add was carrying")
         } else {
             Issue.record("Expected the rename to fold into the add")
+        }
+    }
+
+    @Test("Adding notes to a pending addition rewrites the addition")
+    func notesFoldIntoAdd() {
+        let log = fold([add("local-1", "Milk"), notes("local-1", "The barista one")])
+        #expect(log.count == 1)
+        if case .addTodo(_, let localId, let title, let notes) = log[0].kind {
+            #expect(localId == "local-1")
+            #expect(title == "Milk", "Notes must not touch the title")
+            #expect(notes == "The barista one")
+        } else {
+            Issue.record("Expected the notes to fold into the add")
+        }
+    }
+
+    @Test("Editing notes repeatedly queues only the final text, and clearing counts")
+    func lastNotesWin() {
+        let log = fold([notes("t1", "a"), notes("t1", "ab"), notes("t1", nil)])
+        #expect(log.count == 1)
+        if case .setNotes(_, _, let value) = log[0].kind { #expect(value == nil) }
+        else { Issue.record("Expected a setNotes") }
+    }
+
+    @Test("Notes and a rename on the same real item are both kept")
+    func notesAndRenameCoexist() {
+        // They go to different endpoints, so neither is a stale version of the
+        // other.
+        let log = fold([rename("t1", "Milk"), notes("t1", "Oat")])
+        #expect(log.count == 2)
+    }
+
+    @Test("An old log without the notes field still decodes")
+    func legacyAddDecodes() throws {
+        // The queue is on disk across app updates. An entry written before
+        // additions carried notes must not become a corrupt log.
+        let legacy = Data("""
+        [{"id":"0B3A0C3E-2E7C-4E7B-9C7E-3D7C2B1A0F11","at":0,
+          "kind":{"addTodo":{"listId":"l1","localId":"local-1","title":"Milk"}}}]
+        """.utf8)
+        let log = try JSONDecoder().decode([PendingMutation].self, from: legacy)
+        #expect(log.count == 1)
+        if case .addTodo(_, _, let title, let notes) = log[0].kind {
+            #expect(title == "Milk")
+            #expect(notes == nil)
+        } else {
+            Issue.record("Expected an addTodo")
         }
     }
 

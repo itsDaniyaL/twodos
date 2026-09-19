@@ -122,6 +122,7 @@ struct ListInfoSheet: View {
             HStack(spacing: 12) {
                 AvatarView(
                     initials: partner?.initials ?? "?",
+                    imageURL: partner?.avatarURL,
                     size: 44,
                     isOnline: isPending ? nil : store.isPartnerOnline(list.partnerId)
                 )

@@ -191,11 +191,23 @@ struct ListCard: View {
             }
 
             if !isPersonal {
-                MetaChip(
-                    icon: list.isPendingInvite ? "clock.badge.questionmark" : "person.2.fill",
-                    text: partnerLabel,
-                    tint: list.isPendingInvite ? Brand.warning : .secondary
-                )
+                // Their face, when they have one, is what tells your Groceries
+                // from theirs at a glance — faster than reading the name in
+                // the chip. Initials otherwise, so the chip never loses its
+                // mark; a pending invite keeps the clock, since there is no
+                // person to show yet.
+                HStack(spacing: 4) {
+                    if list.isPendingInvite || partner == nil {
+                        MetaChip(
+                            icon: list.isPendingInvite ? "clock.badge.questionmark" : "person.2.fill",
+                            text: partnerLabel,
+                            tint: list.isPendingInvite ? Brand.warning : .secondary
+                        )
+                    } else if let partner {
+                        AvatarView(initials: partner.initials, imageURL: partner.avatarURL, size: 18)
+                        MetaChip(icon: "person.2.fill", text: partnerLabel, tint: .secondary)
+                    }
+                }
             }
 
             Spacer(minLength: 0)

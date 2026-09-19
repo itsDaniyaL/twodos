@@ -114,8 +114,20 @@ final class WatchStore {
         await flushPendingToggles()
 
         do {
-            let fetched = try await api.lists()
-            lists = WatchList.snapshot(from: fetched, currentUserId: nil)
+            // Partners alongside the lists, so a refresh started on the wrist
+            // keeps the partner's name and face rather than blanking them
+            // until the phone next pushes. Best-effort: the lists are the
+            // point, and a partner lookup failing must not fail the refresh.
+            async let fetchedLists = api.lists()
+            async let fetchedPartners = (try? api.partners()) ?? []
+            let (fetched, partners) = try await (fetchedLists, fetchedPartners)
+            let lookups = WatchList.partnerLookups(partners)
+            lists = WatchList.snapshot(
+                from: fetched,
+                currentUserId: nil,
+                partnerNames: lookups.names,
+                partnerAvatarURLs: lookups.avatars
+            )
             lastError = nil
             // Before `persist()`: the snapshot it writes records whether anyone
             // is signed in, and reading a phase we are about to change would

@@ -199,6 +199,30 @@ struct APIDecodingTests {
         #expect(list.isPendingInvite)
     }
 
+    @Test("An item's `description` decodes as notes, and every empty shape is nil")
+    func todoNotesDecoding() throws {
+        // `description` is the wire name; `notes` is the model's, because the
+        // former is a word Swift already uses. Absent, null, empty and
+        // whitespace-only all mean "no notes" — the server stores them all as
+        // null, and a row must not have to check four shapes to decide whether
+        // to draw the preview line.
+        let json = """
+        {"statusCode":200,"data":[\
+        {"id":"1","title":"Bananas","done":false,"order":0,"description":"Ripe, not green"},\
+        {"id":"2","title":"Milk","done":false,"order":1,"description":null},\
+        {"id":"3","title":"Bread","done":false,"order":2,"description":""},\
+        {"id":"4","title":"Eggs","done":false,"order":3,"description":"   "},\
+        {"id":"5","title":"Butter","done":false,"order":4}]}
+        """
+        let items = try #require(try decode(APIClient.Envelope<[Todo]>.self, json).data)
+        #expect(items[0].notes == "Ripe, not green")
+        #expect(items[0].hasNotes)
+        for item in items.dropFirst() {
+            #expect(item.notes == nil, "\(item.title) should have no notes")
+            #expect(!item.hasNotes)
+        }
+    }
+
     /// The spec documents `URGENT`/`NONURGENT`; the wire format is namespaced.
     /// Trusting the spec here would have broken priority silently.
     @Test("Priority uses the namespaced wire format, not the documented enum")

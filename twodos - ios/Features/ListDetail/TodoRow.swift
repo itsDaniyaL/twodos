@@ -11,6 +11,8 @@ struct TodoRow: View {
     let listId: String
     let onToggle: () -> Void
     let onEdit: () -> Void
+    /// Same editor as `onEdit`, opened on the notes field.
+    let onEditNotes: () -> Void
     let onSetDeadline: () -> Void
     /// Pin this one item to a place. The API has always supported it; nothing
     /// reached it until now.
@@ -93,6 +95,9 @@ struct TodoRow: View {
             Button(action: onEdit) {
                 Label("Edit text", systemImage: "pencil")
             }
+            Button(action: onEditNotes) {
+                Label(todo.hasNotes ? "Edit notes" : "Add notes", systemImage: "note.text")
+            }
             Button(action: onSetDeadline) {
                 Label(todo.doBefore == nil ? "Add a reminder" : "Change reminder", systemImage: "bell")
             }
@@ -118,6 +123,7 @@ struct TodoRow: View {
         .accessibilityHint(todo.done ? "Marks as not done" : "Marks as done")
         .accessibilityActions {
             Button("Edit", action: onEdit)
+            Button(todo.hasNotes ? "Edit notes" : "Add notes", action: onEditNotes)
             Button("Set a reminder", action: onSetDeadline)
             Button("Delete", action: onDelete)
         }
@@ -158,6 +164,18 @@ struct TodoRow: View {
                 .foregroundStyle(todo.done ? .secondary : .primary)
                 .multilineTextAlignment(.leading)
                 .motion(Motion.content, value: todo.done)
+
+            // A preview, not the note: two lines is enough to know what it says
+            // and to tell two "Milk" entries apart. The full text lives in the
+            // editor. Only drawn when there is one, so the default row is
+            // exactly as tall as it was.
+            if let notes = todo.notes {
+                Text(notes)
+                    .font(.caption)
+                    .foregroundStyle(todo.done ? .tertiary : .secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
 
             if todo.isOverdue {
                 Text("Overdue")
@@ -203,6 +221,7 @@ struct TodoRow: View {
 
     private var accessibilityLabel: String {
         var parts = [todo.title]
+        if let notes = todo.notes { parts.append("notes: \(notes)") }
         if isInChallenge { parts.append("in the challenge") }
         if todo.hasLocation {
             parts.append("reminder when you \(todo.trigger.shortTitle.lowercased()) at "
@@ -220,45 +239,89 @@ struct TodoRow: View {
 
 // MARK: - Edit sheet
 
-/// Renaming an item.
+/// Editing an item: its title and, underneath, its notes.
+///
+/// One sheet for both rather than a "Rename" and a separate "Notes" screen,
+/// because the second thing people do after fixing a title is add the detail
+/// they left out of it. The two fields save independently — the title goes to
+/// the title endpoint and the notes to theirs — so an edit here can never
+/// overwrite a change the partner made to the other field in the meantime.
 struct EditTodoSheet: View {
+    enum Field { case title, notes }
+
     let listId: String
     let todo: Todo
+    /// Which field gets the keyboard on arrival. "Add notes" lands on the
+    /// notes; "Edit text" on the title.
+    let initialFocus: Field
 
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
     @State private var text: String
-    @FocusState private var focused: Bool
+    @State private var notes: String
+    @FocusState private var focus: Field?
 
-    init(listId: String, todo: Todo) {
+    init(listId: String, todo: Todo, initialFocus: Field = .title) {
         self.listId = listId
         self.todo = todo
+        self.initialFocus = initialFocus
         _text = State(initialValue: todo.title)
+        _notes = State(initialValue: todo.notes ?? "")
     }
 
+    private var trimmedTitle: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var titleChanged: Bool { trimmedTitle != todo.title }
+    private var notesChanged: Bool { Todo.normalisedNotes(notes) != todo.notes }
+
     private var canSave: Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && trimmed != todo.title
+        !trimmedTitle.isEmpty && (titleChanged || notesChanged)
     }
+
+    /// Over the limit the server would refuse with a 400; disabling Save with
+    /// a visible count is kinder than a banner after the fact.
+    private var notesOverLimit: Bool { notes.count > Self.notesLimit }
+    /// Matches `TextLimits.TodoDescription` on the server.
+    static let notesLimit = 1000
 
     var body: some View {
         NavigationStack {
             ZStack {
                 ScreenBackground()
 
-                VStack(spacing: 16) {
-                    TextField("Item", text: $text, axis: .vertical)
-                        .font(.title3)
-                        .lineLimit(1...6)
-                        .focused($focused)
-                        .padding(16)
-                        .glassEffect(.regular, in: .rect(cornerRadius: Metrics.controlRadius))
-                        .accessibilityLabel("Item text")
-                    Spacer()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TextField("Item", text: $text, axis: .vertical)
+                            .font(.title3)
+                            .lineLimit(1...6)
+                            .focused($focus, equals: .title)
+                            .submitLabel(.next)
+                            .onSubmit { focus = .notes }
+                            .padding(16)
+                            .glassEffect(.regular, in: .rect(cornerRadius: Metrics.controlRadius))
+                            .accessibilityLabel("Item text")
+
+                        TextField("Notes", text: $notes, axis: .vertical)
+                            .font(.body)
+                            .lineLimit(3...12)
+                            .focused($focus, equals: .notes)
+                            .padding(16)
+                            .glassEffect(.regular, in: .rect(cornerRadius: Metrics.controlRadius))
+                            .accessibilityLabel("Notes")
+                            .accessibilityHint("Optional detail shown under the item")
+
+                        if notesOverLimit {
+                            Text("Notes can be up to \(Self.notesLimit) characters — this is \(notes.count).")
+                                .font(.caption)
+                                .foregroundStyle(Brand.danger)
+                                .padding(.horizontal, 4)
+                        }
+                    }
+                    .padding(.horizontal, Metrics.gutter)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, Metrics.gutter)
-                .padding(.top, 12)
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Edit item")
             .navigationBarTitleDisplayMode(.inline)
@@ -267,24 +330,33 @@ struct EditTodoSheet: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        Task {
-                            await store.renameTodo(
-                                listId: listId,
-                                todoId: todo.id,
-                                title: text.trimmingCharacters(in: .whitespacesAndNewlines)
-                            )
-                        }
-                        dismiss()
-                    }
-                    .disabled(!canSave)
-                    .fontWeight(.semibold)
+                    Button("Save", action: save)
+                        // ⌘↩, since plain Return inserts a line into the notes.
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!canSave || notesOverLimit)
+                        .fontWeight(.semibold)
                 }
             }
-            .onAppear { focused = true }
+            .onAppear { focus = initialFocus }
         }
-        .presentationDetents([.height(220)])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private func save() {
+        let title = trimmedTitle
+        let newNotes = Todo.normalisedNotes(notes)
+        let titleChanged = self.titleChanged
+        let notesChanged = self.notesChanged
+        Task {
+            if titleChanged {
+                await store.renameTodo(listId: listId, todoId: todo.id, title: title)
+            }
+            if notesChanged {
+                await store.setTodoNotes(listId: listId, todoId: todo.id, notes: newNotes)
+            }
+        }
+        dismiss()
     }
 }
 

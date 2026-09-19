@@ -68,6 +68,9 @@ struct CreateListSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") { submit() }
+                        // ⌘↩ on a keyboard; the name field's own Return still
+                        // submits too.
+                        .keyboardShortcut(.defaultAction)
                         .disabled(!canSubmit)
                         .fontWeight(.semibold)
                 }
@@ -214,7 +217,7 @@ struct CreateListSheet: View {
                         Haptics.selection()
                     } label: {
                         HStack(spacing: 6) {
-                            AvatarView(initials: partner.initials, size: 22)
+                            AvatarView(initials: partner.initials, imageURL: partner.avatarURL, size: 22)
                             Text(partner.displayName)
                                 .font(.caption.weight(.medium))
                                 .lineLimit(1)
@@ -273,10 +276,19 @@ struct CreateListSheet: View {
 
 // MARK: - Avatar
 
-/// A person, drawn from their initials. No image uploads exist in the API, so
-/// initials on a stable per-person colour is the most identity we can give.
+/// A person: their profile picture when they have one, initials on a stable
+/// per-person colour when they do not.
+///
+/// Pictures come from a linked Google or Facebook account — there is no
+/// upload — so plenty of people have none, and the initials are the design,
+/// not a placeholder. They are also what shows while a picture loads and if
+/// it fails, so a row never draws an empty circle.
 struct AvatarView: View {
     let initials: String
+    /// The picture. `nil` draws initials. The URL is immutable on the server —
+    /// a changed picture is a new URL — so the system cache can keep it as
+    /// long as it likes.
+    var imageURL: URL? = nil
     var size: CGFloat = 40
     var isOnline: Bool?
 
@@ -300,6 +312,22 @@ struct AvatarView: View {
                     Text(initials)
                         .font(.system(size: size * 0.4, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
+                }
+                .overlay {
+                    if let imageURL {
+                        AsyncImage(url: imageURL) { phase in
+                            if let image = phase.image {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .transition(.opacity)
+                            }
+                            // Loading and failure both leave the initials
+                            // underneath showing; nothing to draw here.
+                        }
+                        .frame(width: size, height: size)
+                        .clipShape(.circle)
+                    }
                 }
 
             if let isOnline {

@@ -14,9 +14,11 @@ import SwiftUI
 /// show their own text.
 struct SearchView: View {
     @Environment(AppStore.self) private var store
+    @Environment(AppCommands.self) private var commands
 
     @State private var query = ""
     @State private var path = NavigationPath()
+    @FocusState private var searchFocused: Bool
     @Namespace private var namespace
 
     var body: some View {
@@ -28,12 +30,21 @@ struct SearchView: View {
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $query, prompt: "Lists and items")
+            .searchFocused($searchFocused)
             .navigationDestination(for: ListRoute.self) { route in
                 switch route {
                 case .detail(let id):
                     ListDetailView(listId: id)
                 }
             }
+        }
+        // ⌥⌘F. `task(id:)` rather than `onChange`, because the first press is
+        // usually what mounts this tab, and `onChange` only sees changes it was
+        // there for. The guard keeps a plain tap on the tab from raising the
+        // keyboard on a phone.
+        .task(id: commands.searchRequests) {
+            guard commands.searchRequests > 0 else { return }
+            searchFocused = true
         }
     }
 

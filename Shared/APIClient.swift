@@ -67,6 +67,16 @@ actor APIClient {
         #endif
     }
 
+    /// Turns an `avatarUrl` from the API into something loadable.
+    ///
+    /// The server sends an absolute URL when it knows its own origin and a
+    /// bare `/api/v1/account/avatar/…` path when it does not; either way the
+    /// picture lives on the host this client already talks to.
+    static func resolve(_ urlOrPath: String?) -> URL? {
+        guard let urlOrPath, !urlOrPath.isEmpty else { return nil }
+        return URL(string: urlOrPath, relativeTo: baseURL)?.absoluteURL
+    }
+
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
@@ -479,8 +489,26 @@ extension APIClient {
         try await perform("GET", "/api/account/social-links")
     }
 
+    /// Attaches a provider to the account the caller is already signed in as.
+    ///
+    /// Different from `socialLogin` on purpose: that one picks the account by
+    /// the provider's email, this one takes the bearer token as the proof of
+    /// which account is meant — so a Google address that differs from the
+    /// account's still links here. The server also adopts the provider's
+    /// profile picture as part of linking, if the account had none.
+    func linkSocial(provider: SocialProvider, token: String) async throws(APIError) -> Bool {
+        try await performVoid("POST", "/api/account/social-links",
+                              body: ["provider": provider.rawValue, "token": token])
+    }
+
     func unlinkSocial(provider: String) async throws(APIError) -> Bool {
         try await performVoid("DELETE", "/api/account/social-links/\(provider)")
+    }
+
+    /// Which linked provider's picture the account shows; `nil` for initials.
+    /// The key is always sent — the endpoint treats its absence as a mistake.
+    func chooseAvatar(provider: SocialProvider?) async throws(APIError) -> Bool {
+        try await performVoid("PATCH", "/api/account/avatar", body: ["provider": provider?.rawValue])
     }
 
     func requestAccountDeletion(email: String) async throws(APIError) -> Bool {
@@ -552,8 +580,12 @@ extension APIClient {
 // MARK: - Todos
 
 extension APIClient {
-    func createTodo(listId: String, title: String) async throws(APIError) -> Bool {
-        try await performVoid("POST", "/api/todos/\(listId)", body: ["title": title, "done": false])
+    func createTodo(listId: String, title: String, notes: String? = nil) async throws(APIError) -> Bool {
+        var body: [String: Any?] = ["title": title, "done": false]
+        // Only sent when there is something to say. The server stores an empty
+        // string as null anyway, so this is about the wire, not the result.
+        if let notes = Todo.normalisedNotes(notes) { body["description"] = notes }
+        return try await performVoid("POST", "/api/todos/\(listId)", body: body)
     }
 
     func setTodoDone(listId: String, todoId: String, done: Bool) async throws(APIError) -> Bool {
@@ -562,6 +594,18 @@ extension APIClient {
 
     func setTodoTitle(listId: String, todoId: String, title: String) async throws(APIError) -> Bool {
         try await performVoid("PATCH", "/api/todos/\(listId)/\(todoId)/title", body: ["title": title])
+    }
+
+    /// Sets or clears the notes on one item, and nothing else.
+    ///
+    /// A sibling of `setTodoTitle` rather than a call to the general update:
+    /// sending the whole item back to save a note is how two people editing
+    /// the same task overwrite each other's titles. The key is always present —
+    /// the endpoint treats a body without it as a mistake, and `nil` (sent as
+    /// JSON null) is how the notes are cleared.
+    func setTodoNotes(listId: String, todoId: String, notes: String?) async throws(APIError) -> Bool {
+        try await performVoid("PATCH", "/api/todos/\(listId)/\(todoId)/description",
+                              body: ["description": Todo.normalisedNotes(notes)])
     }
 
     func setTodoDeadline(

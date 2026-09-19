@@ -121,6 +121,7 @@ struct PartnerRow: View {
             HStack(spacing: 14) {
                 AvatarView(
                     initials: partner.initials,
+                    imageURL: partner.avatarURL,
                     size: 44,
                     isOnline: isBlocked ? nil : isOnline
                 )

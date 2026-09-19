@@ -17,16 +17,23 @@ struct ListDetailView: View {
 
     @Environment(AppStore.self) private var store
     @Environment(LocationService.self) private var location
+    @Environment(AppCommands.self) private var commands
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     @State private var draft = ""
+    /// The optional second line of a new item. Hidden until asked for, so the
+    /// bar stays a single field for the nine adds in ten that have no detail.
+    @State private var draftNotes = ""
+    @State private var isAddingNotes = false
     @State private var showCompleted = true
     @State private var showingOptions = false
     @State private var showingInfo = false
     /// Swaps the action bar into the inline colour picker.
     @State private var isPickingColor = false
     @State private var editingTodo: Todo?
+    /// Which field the editor opens on; set alongside `editingTodo`.
+    @State private var editFocus: EditTodoSheet.Field = .title
     /// The item whose place is being pinned.
     @State private var locationTodo: Todo?
     /// Owned here so swiping a second item closes the first.
@@ -35,6 +42,7 @@ struct ListDetailView: View {
     @State private var showingChallenge = false
     @State private var typingTask: Task<Void, Never>?
     @FocusState private var addFieldFocused: Bool
+    @FocusState private var notesFieldFocused: Bool
 
     private var list: TodoList? { store.list(id: listId) }
 
@@ -88,7 +96,7 @@ struct ListDetailView: View {
             LocationPickerView(listId: listId, todo: todo)
         }
         .sheet(item: $editingTodo) { todo in
-            EditTodoSheet(listId: listId, todo: todo)
+            EditTodoSheet(listId: listId, todo: todo, initialFocus: editFocus)
         }
         .sheet(item: $deadlineTarget) { target in
             DeadlineSheet(
@@ -103,7 +111,17 @@ struct ListDetailView: View {
                 }
             )
         }
-        .onDisappear { stopTyping() }
+        // ⌘⇧N. The menu item is greyed out unless a list is on screen, which
+        // is what `openListId` is for.
+        .onChange(of: commands.newItemRequests) { _, _ in
+            guard list?.archived != true else { return }
+            addFieldFocused = true
+        }
+        .onAppear { commands.openListId = listId }
+        .onDisappear {
+            stopTyping()
+            if commands.openListId == listId { commands.openListId = nil }
+        }
     }
 
     // MARK: - Content
@@ -271,7 +289,8 @@ struct ListDetailView: View {
                     todo: todo,
                     listId: listId,
                     onToggle: { Task { await store.setTodo(listId: listId, todoId: todo.id, done: true) } },
-                    onEdit: { editingTodo = todo },
+                    onEdit: { editFocus = .title; editingTodo = todo },
+                    onEditNotes: { editFocus = .notes; editingTodo = todo },
                     onSetDeadline: {
                         deadlineTarget = .item(
                             todoId: todo.id,
@@ -346,7 +365,8 @@ struct ListDetailView: View {
                             todo: todo,
                             listId: listId,
                             onToggle: { Task { await store.setTodo(listId: listId, todoId: todo.id, done: false) } },
-                            onEdit: { editingTodo = todo },
+                            onEdit: { editFocus = .title; editingTodo = todo },
+                            onEditNotes: { editFocus = .notes; editingTodo = todo },
                             onSetDeadline: {
                                 deadlineTarget = .item(todoId: todo.id, currentDate: todo.doBefore, title: todo.title)
                             },
@@ -388,39 +408,90 @@ struct ListDetailView: View {
     // MARK: - Add bar
 
     private func addBar(for list: TodoList) -> some View {
-        HStack(spacing: 10) {
-            TextField("Add an item", text: $draft, axis: .vertical)
-                .lineLimit(1...4)
-                .focused($addFieldFocused)
-                .submitLabel(.done)
-                .onSubmit(addItem)
-                .onChange(of: draft) { _, newValue in
-                    handleTypingSignal(isTyping: !newValue.isEmpty)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                .glassEffect(.regular, in: .capsule)
-                .accessibilityLabel("New item")
-
-            Button(action: addItem) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .bold))
-                    .frame(width: 20, height: 20)
+        VStack(spacing: 8) {
+            // Return inserts a newline here rather than submitting: a note is
+            // the one place a line break is wanted, and the arrow button is
+            // right there to send it.
+            if isAddingNotes {
+                TextField("Notes (optional)", text: $draftNotes, axis: .vertical)
+                    .lineLimit(1...4)
+                    .font(.subheadline)
+                    .focused($notesFieldFocused)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .glassEffect(.regular, in: .rect(cornerRadius: Metrics.controlRadius))
+                    .accessibilityLabel("Notes for the new item")
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-            .clipShape(.circle)
-            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
-            .scaleEffect(draft.trimmingCharacters(in: .whitespaces).isEmpty ? 0.85 : 1)
-            .opacity(draft.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
-            .motion(Motion.tap, value: draft.isEmpty)
-            .accessibilityLabel("Add item")
+
+            HStack(spacing: 10) {
+                // The notes toggle sits inside the capsule as a suffix rather
+                // than as a third button in the row: a second circle beside the
+                // send button squeezed the field to the point where a normal
+                // item title wrapped.
+                HStack(spacing: 8) {
+                    TextField("Add an item", text: $draft, axis: .vertical)
+                        .lineLimit(1...4)
+                        .focused($addFieldFocused)
+                        .submitLabel(.done)
+                        .onSubmit(addItem)
+                        .onChange(of: draft) { _, newValue in
+                            handleTypingSignal(isTyping: !newValue.isEmpty)
+                        }
+                        // Vertical padding stays on the field, so the capsule
+                        // is exactly the height it was before the suffix.
+                        .padding(.vertical, 11)
+                        .accessibilityLabel("New item")
+
+                    Button(action: toggleNotesField) {
+                        Image(systemName: isAddingNotes ? "note.text.badge.plus" : "note.text")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(isAddingNotes ? Color.accentColor : .secondary)
+                            .frame(width: 28, height: 28)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .motion(Motion.tap, value: isAddingNotes)
+                    .accessibilityLabel(isAddingNotes ? "Hide notes" : "Add notes")
+                    .accessibilityHint("Adds an optional line of detail to the new item")
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, 8)
+                .glassEffect(.regular, in: .capsule)
+
+                Button(action: addItem) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .clipShape(.circle)
+                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                .scaleEffect(draft.trimmingCharacters(in: .whitespaces).isEmpty ? 0.85 : 1)
+                .opacity(draft.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+                .motion(Motion.tap, value: draft.isEmpty)
+                .accessibilityLabel("Add item")
+            }
         }
         .padding(.horizontal, Metrics.gutter)
         .padding(.top, 10)
         .padding(.bottom, 6)
+        .motion(Motion.content, value: isAddingNotes)
         .disabled(list.archived)
         .opacity(list.archived ? 0.5 : 1)
+    }
+
+    private func toggleNotesField() {
+        isAddingNotes.toggle()
+        if isAddingNotes {
+            notesFieldFocused = true
+        } else {
+            // Hiding the field discards what was in it; keeping invisible text
+            // and sending it with the next add would be a nasty surprise.
+            draftNotes = ""
+            addFieldFocused = true
+        }
     }
 
     // MARK: - Action bar
@@ -570,6 +641,7 @@ struct ListDetailView: View {
                         if store.isPartnerTyping(inList: listId) { TypingIndicator() }
                         AvatarView(
                             initials: collaborator.initials,
+                            imageURL: collaborator.avatarURL,
                             size: 28,
                             isOnline: list?.isPendingInvite == true
                                 ? nil
@@ -605,11 +677,14 @@ struct ListDetailView: View {
     private func addItem() {
         let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
+        let notes = Todo.normalisedNotes(draftNotes)
         draft = ""
+        draftNotes = ""
+        isAddingNotes = false
         stopTyping()
         // Keep focus so a run of items can be typed without re-tapping.
         addFieldFocused = true
-        Task { await store.addTodo(listId: listId, title: title) }
+        Task { await store.addTodo(listId: listId, title: title, notes: notes) }
     }
 
     /// Debounced typing indicator. The "started" signal is sent immediately so

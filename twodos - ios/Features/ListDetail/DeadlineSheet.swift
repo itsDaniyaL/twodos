@@ -62,6 +62,7 @@ struct DeadlineSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Set") { save() }
+                        .keyboardShortcut(.defaultAction)
                         .fontWeight(.semibold)
                         .disabled(date <= .now)
                 }

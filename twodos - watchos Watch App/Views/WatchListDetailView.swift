@@ -63,10 +63,18 @@ struct WatchListDetailView: View {
         if list.partnerName != nil || list.locationLabel != nil {
             VStack(alignment: .leading, spacing: 3) {
                 if let partner = list.partnerName {
-                    Label(partner, systemImage: "person.2.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        WatchAvatarView(
+                            initials: list.partnerInitials ?? "?",
+                            imageURL: list.partnerAvatarURL,
+                            size: 16,
+                            tint: tint
+                        )
+                        Text(partner)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 if let place = list.locationLabel {
                     Label(place, systemImage: "mappin.and.ellipse")
