@@ -11,6 +11,14 @@ struct ProfileView: View {
     @State private var confirmingSignOut = false
     /// Shown when the avatar is tapped with nothing to pick from.
     @State private var isPromptingForPicture = false
+    @State private var isChoosingUsername = false
+    /// Whether the person has waved the username highlight away.
+    ///
+    /// A handle is optional, so the prompt has to be dismissible — and once
+    /// dismissed it must not come back on the next launch, which is why this is
+    /// stored rather than held in memory. The row in the Account section stays
+    /// either way, so dismissing hides a suggestion rather than a feature.
+    @AppStorage("usernameHighlightDismissed") private var usernameHighlightDismissed = false
 
     enum Route: Hashable {
         case appearance, notifications, partners, security, about, deleteAccount
@@ -24,6 +32,7 @@ struct ProfileView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         identityCard
+                        if showsUsernameHighlight { usernameHighlight }
                         statsRow
                         settingsSection
                         accountSection
@@ -41,6 +50,7 @@ struct ProfileView: View {
             // The avatar's menu depends on which connected accounts have a
             // picture, which `refreshAll` does not fetch.
             .task { await store.refreshSocialLinks() }
+            .sheet(isPresented: $isChoosingUsername) { UsernameSheet() }
             .alert("Add a profile picture", isPresented: $isPromptingForPicture) {
                 Button("Connect an account") { path.append(Route.security) }
                 Button("Not now", role: .cancel) {}
@@ -92,6 +102,17 @@ struct ProfileView: View {
                     Text(store.user?.email ?? "")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    // The handle is the thing a partner types, so it belongs
+                    // where they would look for it — with the name, not buried
+                    // in a settings row. Absent until claimed, and never a
+                    // blank space pretending to be a field.
+                    if let handle = store.user?.handle {
+                        Text(handle)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Color.accentColor)
+                            .textSelection(.enabled)
+                            .accessibilityLabel("Username \(handle)")
+                    }
                 }
 
                 if store.user?.emailVerified == false {
@@ -180,6 +201,24 @@ struct ProfileView: View {
         }
     }
 
+    /// Offered only to accounts that have no handle, and only until the person
+    /// says no. A username earns nothing by being nagged about: email remains a
+    /// first-class identity, and someone who never claims one loses no feature.
+    private var showsUsernameHighlight: Bool {
+        store.user != nil && store.user?.username == nil && !usernameHighlightDismissed
+    }
+
+    private var usernameHighlight: some View {
+        InlineBanner(
+            kind: .info,
+            title: "Claim your username",
+            message: "Give partners one thing to type instead of an email address they have to remember. Optional, and yours for good once chosen.",
+            actionTitle: "Choose one",
+            action: { isChoosingUsername = true },
+            onDismiss: { withAnimation(Motion.content) { usernameHighlightDismissed = true } }
+        )
+    }
+
     /// A little at-a-glance summary. It costs nothing — the data is already
     /// loaded — and it makes the screen feel like it belongs to this person.
     private var statsRow: some View {
@@ -225,6 +264,15 @@ struct ProfileView: View {
 
     private var accountSection: some View {
         GlassSection(title: "Account") {
+            // Always here, whether or not the highlight above was dismissed —
+            // a prompt someone waved away should not be the only way to reach
+            // the thing. Reads as a plain value once claimed, because by then
+            // there is nothing left to do with it.
+            GlassRow(icon: "at", title: "Username",
+                     subtitle: store.user?.handle ?? "Not set yet",
+                     showsChevron: store.user?.username == nil,
+                     action: store.user?.username == nil ? { isChoosingUsername = true } : nil)
+            GlassDivider()
             GlassRow(icon: "lock.shield", title: "Sign-in and security",
                      subtitle: "Password and connected accounts",
                      showsChevron: true,

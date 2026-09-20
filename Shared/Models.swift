@@ -33,9 +33,13 @@ struct CurrentUser: Decodable, Identifiable, Equatable, Sendable {
     var avatarUrl: String?
     /// Which linked provider the picture was taken from.
     var avatarProvider: String?
+    /// The handle a partner can type to find this person, or nil if none has
+    /// been claimed. Optional and permanent: nil is a supported, lasting state,
+    /// and once set the server refuses to change it.
+    var username: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, email, emailVerified, authProvider, hasPassword, avatarUrl, avatarProvider
+        case id, name, email, emailVerified, authProvider, hasPassword, avatarUrl, avatarProvider, username
     }
 
     init(from decoder: Decoder) throws {
@@ -51,10 +55,14 @@ struct CurrentUser: Decodable, Identifiable, Equatable, Sendable {
             ?? (authProvider == nil || authProvider == "email")
         avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
         avatarProvider = try c.decodeIfPresent(String.self, forKey: .avatarProvider)
+        // A server too old to know about handles simply has none, which is the
+        // same state as an account that never claimed one.
+        username = try c.decodeIfPresent(String.self, forKey: .username)
     }
 
     init(id: String?, name: String?, email: String?, emailVerified: Bool = false, authProvider: String? = nil,
-         hasPassword: Bool = true, avatarUrl: String? = nil, avatarProvider: String? = nil) {
+         hasPassword: Bool = true, avatarUrl: String? = nil, avatarProvider: String? = nil,
+         username: String? = nil) {
         self.id = id
         self.name = name
         self.email = email
@@ -63,6 +71,13 @@ struct CurrentUser: Decodable, Identifiable, Equatable, Sendable {
         self.hasPassword = hasPassword
         self.avatarUrl = avatarUrl
         self.avatarProvider = avatarProvider
+        self.username = username
+    }
+
+    /// The handle as it is shown — with the `@` the server never stores.
+    var handle: String? {
+        guard let username, !username.isEmpty else { return nil }
+        return "@\(username)"
     }
 
     /// The picture as something an image view can load. `avatarUrl` may be
@@ -96,8 +111,12 @@ struct Partner: Decodable, Identifiable, Equatable, Hashable, Sendable {
     /// Their profile picture, or nil for initials. What tells two people's
     /// lists apart on a card.
     var avatarUrl: String?
+    /// Their handle, if they have claimed one. Shorter than an address and
+    /// stable across address changes, so it is the better thing to show and the
+    /// better thing to reuse when sharing another list with them.
+    var username: String?
 
-    enum CodingKeys: String, CodingKey { case id, name, email, emailVerified, status, avatarUrl }
+    enum CodingKeys: String, CodingKey { case id, name, email, emailVerified, status, avatarUrl, username }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -107,19 +126,34 @@ struct Partner: Decodable, Identifiable, Equatable, Hashable, Sendable {
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? false
         status = try c.decodeIfPresent(String.self, forKey: .status)
         avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        username = try c.decodeIfPresent(String.self, forKey: .username)
     }
 
     init(id: String, name: String?, email: String, emailVerified: Bool = false, status: String? = nil,
-         avatarUrl: String? = nil) {
+         avatarUrl: String? = nil, username: String? = nil) {
         self.id = id
         self.name = name
         self.email = email
         self.emailVerified = emailVerified
         self.status = status
         self.avatarUrl = avatarUrl
+        self.username = username
     }
 
     var avatarURL: URL? { APIClient.resolve(avatarUrl) }
+
+    /// The handle as it is shown — with the `@` the server never stores.
+    var handle: String? {
+        guard let username, !username.isEmpty else { return nil }
+        return "@\(username)"
+    }
+
+    /// What to send as `partner` to share another list with this person.
+    ///
+    /// Their handle when they have one: it is shorter, and it survives them
+    /// changing the address on their account, which the address obviously does
+    /// not. Falls back to the address, which every account has.
+    var shareReference: String { handle ?? email }
 
     var displayName: String { name?.isEmpty == false ? name! : email }
 
@@ -667,4 +701,51 @@ struct PendingInvite: Decodable, Identifiable, Sendable {
     let createdAt: Date?
 
     var id: String { listId }
+}
+
+// MARK: - Who a list is being shared with
+
+/// How the server reads the `partner` field on `POST /todos`: as an address, or
+/// as a handle.
+///
+/// Mirrors `TodosService.looksLikeUsername` — a leading `@`, or no `@` at all.
+/// The client needs the same answer *before* sending, because the two are not
+/// interchangeable and the difference is the whole of what the user has to be
+/// told: an unknown address raises an invitation and mails it, while an unknown
+/// handle can only be refused, since a handle gives the server nowhere to send
+/// anything.
+enum PartnerReference: Equatable {
+    case email(String)
+    case username(String)
+
+    init?(_ raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.hasPrefix("@") || !trimmed.contains("@") {
+            self = .username(trimmed.replacingOccurrences(of: "@", with: "").lowercased())
+        } else {
+            self = .email(trimmed)
+        }
+    }
+
+    /// Whether this is something worth sending at all. The server is the
+    /// authority either way; this only stops an obviously incomplete entry
+    /// becoming a round trip and an error banner.
+    var isPlausible: Bool {
+        switch self {
+        case .email(let address): EmailRule.looksLikeAddress(address)
+        case .username(let handle): UsernameRules.isValid(handle)
+        }
+    }
+
+    /// The exact string to put in `partner`. Handles keep their `@` so the
+    /// server's own detection agrees with ours even for a handle that happens
+    /// to look like one half of an address.
+    var wireValue: String {
+        switch self {
+        case .email(let address): address
+        case .username(let handle): "@\(handle)"
+        }
+    }
 }

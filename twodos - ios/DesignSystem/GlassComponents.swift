@@ -274,13 +274,29 @@ struct MetaChip: View {
 
 /// A tappable suggestion chip, used for quick deadline presets.
 struct SuggestionChip: View {
-    var title: LocalizedStringResource
+    private let label: Text
     var isSelected: Bool = false
     var action: () -> Void
 
+    init(title: LocalizedStringResource, isSelected: Bool = false, action: @escaping () -> Void) {
+        self.label = Text(title)
+        self.isSelected = isSelected
+        self.action = action
+    }
+
+    /// For a chip whose text comes from the server or the user — a suggested
+    /// username, say. Such a string has no place in the string catalog: there
+    /// is nothing to translate, and interpolating it into a localised key would
+    /// mint one catalog entry per value.
+    init(verbatim: String, isSelected: Bool = false, action: @escaping () -> Void) {
+        self.label = Text(verbatim)
+        self.isSelected = isSelected
+        self.action = action
+    }
+
     var body: some View {
         Button(action: action) {
-            Text(title)
+            label
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 6)
         }

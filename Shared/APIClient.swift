@@ -426,9 +426,19 @@ extension APIClient {
         try await perform("GET", "/api/v1/client-config")
     }
 
-    func register(name: String, email: String, password: String) async throws(APIError) -> Bool {
-        try await performVoid("POST", "/api/account/register",
-                              body: ["name": name, "email": email, "password": password])
+    /// Registers the account, optionally claiming a handle on the way in.
+    ///
+    /// **The handle is best-effort and the response never mentions it.** If it
+    /// is taken or malformed the server logs the reason and creates the account
+    /// without one, because losing a handle must not cost somebody the account
+    /// they just made. So nothing here may promise the handle was claimed — the
+    /// profile screen re-offers it, reading `username` from `/account/me`,
+    /// where `PUT /account/username` can give a reason worth acting on.
+    func register(name: String, email: String, password: String,
+                  username: String? = nil) async throws(APIError) -> Bool {
+        var body: [String: Any?] = ["name": name, "email": email, "password": password]
+        if let username, !username.isEmpty { body["username"] = username }
+        return try await performVoid("POST", "/api/account/register", body: body)
     }
 
     func verifyEmail(email: String, token: String) async throws(APIError) -> Bool {
@@ -511,6 +521,28 @@ extension APIClient {
         try await performVoid("PATCH", "/api/account/avatar", body: ["provider": provider?.rawValue])
     }
 
+    /// Claims the account's handle. **Permanent** — the server has no change
+    /// endpoint, and a second call comes back `USERNAME_ALREADY_SET`.
+    ///
+    /// There is deliberately no availability pre-check here. The endpoint that
+    /// offers one sits behind the auth rate limiter (ten calls per quarter of
+    /// an hour), so anything resembling as-you-type checking would lock the
+    /// user out mid-word. This call answers the same question — it reports
+    /// `USERNAME_TAKEN`, `USERNAME_RESERVED` or `VALIDATION_ERROR` without
+    /// claiming anything — so the only step that needs confirming is the one
+    /// that succeeds.
+    func setUsername(_ username: String) async throws(APIError) -> Bool {
+        try await performVoid("PUT", "/api/v1/account/username", body: ["username": username])
+    }
+
+    /// Handles this person could plausibly want, already filtered to ones they
+    /// can actually have. An empty list is a valid answer — the box is still
+    /// there — so this never fails the screen it feeds.
+    func usernameSuggestions() async throws(APIError) -> [String] {
+        try await perform("GET", "/api/v1/account/username-suggestions",
+                          as: FlexibleArray<String>.self).values
+    }
+
     func requestAccountDeletion(email: String) async throws(APIError) -> Bool {
         try await performVoid("POST", "/api/account/request-deletion", body: ["email": email])
     }
@@ -532,9 +564,20 @@ extension APIClient {
         try await perform("GET", "/api/todos/\(id)")
     }
 
-    func createList(label: String, favorite: Bool, partnerEmail: String?) async throws(APIError) -> Bool {
+    /// Creates a list, optionally shared with somebody.
+    ///
+    /// Sends `partner`, which takes an address **or** a handle, rather than the
+    /// older `partnerEmail`. The server still accepts `partnerEmail` and always
+    /// will — it is what the Flutter client in the field sends — but it cannot
+    /// carry a handle, and `partner` can carry either.
+    ///
+    /// The two are not interchangeable for somebody with no account: an unknown
+    /// address raises a pending invitation and mails it, while an unknown handle
+    /// comes back `404 USERNAME_NOT_FOUND` and nothing happens, because a handle
+    /// gives the server nowhere to send anything.
+    func createList(label: String, favorite: Bool, partner: PartnerReference?) async throws(APIError) -> Bool {
         var body: [String: Any?] = ["label": label, "favorite": favorite]
-        if let partnerEmail, !partnerEmail.isEmpty { body["partnerEmail"] = partnerEmail }
+        if let partner { body["partner"] = partner.wireValue }
         return try await performVoid("POST", "/api/todos", body: body)
     }
 

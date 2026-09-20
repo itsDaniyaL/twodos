@@ -130,7 +130,11 @@ struct PartnerRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(partner.displayName)
                         .font(.body.weight(.medium))
-                    Text(partner.email)
+                    // Their handle when they have one: it is what you would
+                    // type to share another list with them, and it is the
+                    // shorter of the two. The address is still there for
+                    // anyone who has not claimed a handle.
+                    Text(partner.handle ?? partner.email)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -179,7 +183,7 @@ struct PartnerRow: View {
     }
 
     private var accessibilityLabel: String {
-        var parts = [partner.displayName, partner.email]
+        var parts = [partner.displayName, partner.handle ?? partner.email]
         if isBlocked { parts.append("Blocked") }
         else if isOnline { parts.append("Online") }
         else if let lastSeen { parts.append(Format.lastSeen(lastSeen)) }

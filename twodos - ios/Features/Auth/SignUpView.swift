@@ -10,6 +10,7 @@ struct SignUpView: View {
 
     @State private var name = ""
     @State private var email = ""
+    @State private var username = ""
     @State private var password = ""
     @State private var confirmation = ""
     @State private var isSubmitting = false
@@ -17,11 +18,21 @@ struct SignUpView: View {
 
     private var passwordsMatch: Bool { !confirmation.isEmpty && password == confirmation }
 
+    /// Empty is fine and always will be — a handle is optional, so an empty
+    /// box must never be the reason the button is dead. A *malformed* one is
+    /// held back, because the server would silently drop it and the person
+    /// would arrive believing they had claimed it.
+    private var usernameIsAcceptable: Bool {
+        username.trimmingCharacters(in: .whitespaces).isEmpty
+            || Validate.isValidUsername(UsernameRules.normalize(username))
+    }
+
     private var canSubmit: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
             && Validate.isValidEmail(email)
             && Validate.isValidPassword(password)
             && passwordsMatch
+            && usernameIsAcceptable
             && !isSubmitting
     }
 
@@ -38,6 +49,24 @@ struct SignUpView: View {
             AuthField(title: "Email", text: $email, icon: "envelope",
                       contentType: .username, keyboard: .emailAddress,
                       validator: Validate.email)
+
+            // Optional, and said so on the field itself rather than in a
+            // footnote — a box on a sign-up form reads as required unless it
+            // tells you otherwise.
+            AuthField(title: "Username (optional)", text: $username, icon: "at",
+                      contentType: nil, keyboard: .asciiCapable,
+                      autocapitalization: .never,
+                      validator: { value in
+                          value.trimmingCharacters(in: .whitespaces).isEmpty
+                              ? nil
+                              : Validate.username(UsernameRules.normalize(value))
+                      })
+
+            Text("How a partner finds you instead of typing your email address. You can skip this and choose one later.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             AuthField(title: "Password", text: $password, icon: "lock",
                       contentType: .newPassword, isSecure: true,
@@ -72,14 +101,24 @@ struct SignUpView: View {
         errorMessage = nil
 
         let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+        let chosenUsername = UsernameRules.normalize(username).isEmpty
+            ? nil
+            : UsernameRules.normalize(username)
 
         Task {
             defer { isSubmitting = false }
             do {
+                // Best-effort, and the response says nothing about it: a
+                // handle already taken is dropped and the account is still
+                // created. Nothing here claims otherwise, and the profile
+                // screen's highlight re-offers it to anyone who arrives
+                // without one — which is the only place the refusal can be
+                // explained.
                 _ = try await APIClient.shared.register(
                     name: name.trimmingCharacters(in: .whitespaces),
                     email: trimmedEmail,
-                    password: password
+                    password: password,
+                    username: chosenUsername
                 )
                 Haptics.success()
                 path.append(AuthRoute.verifyEmail(email: trimmedEmail))

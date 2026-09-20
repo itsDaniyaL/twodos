@@ -24,7 +24,10 @@ struct CreateListSheet: View {
 
     @State private var label = ""
     @State private var audience: Audience = .unanswered
-    @State private var partnerEmail = ""
+    /// Who to share with — an address or a handle. One field, because the
+    /// server takes one field, and because asking somebody to first classify
+    /// what they are about to type is a question with no purpose.
+    @State private var partnerRef = ""
     @State private var isFavorite = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -32,10 +35,13 @@ struct CreateListSheet: View {
 
     private var isShared: Bool { audience == .shared }
 
+    /// How the server will read what has been typed, or nil while it is empty.
+    private var reference: PartnerReference? { PartnerReference(partnerRef) }
+
     private var canSubmit: Bool {
         !label.trimmingCharacters(in: .whitespaces).isEmpty
             && audience != .unanswered
-            && (!isShared || Validate.isValidEmail(partnerEmail))
+            && (!isShared || reference?.isPlausible == true)
             && !isSubmitting
     }
 
@@ -184,26 +190,46 @@ struct CreateListSheet: View {
 
     private var partnerPicker: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Their email address", text: $partnerEmail)
+            TextField("Email address or @username", text: $partnerRef)
                 .textContentType(.emailAddress)
-                .keyboardType(.emailAddress)
+                // Not the email keyboard: a handle has no `@` to reach for and
+                // the prominent `.com` key is noise when typing one.
+                .keyboardType(.asciiCapable)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .padding(12)
                 .glassEffect(.regular, in: .rect(cornerRadius: 12))
-                .accessibilityLabel("Partner's email address")
+                .accessibilityLabel("Their email address or username")
 
             if !store.partners.isEmpty {
                 recentPartners
             }
 
-            Text("If they don't have twodos yet, we'll email them an invitation.")
+            // The hint follows what is actually being typed, because the two
+            // routes behave differently for somebody with no account and the
+            // difference is not guessable. Saying both at once, permanently,
+            // would be a paragraph nobody reads.
+            Text(partnerHint)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
+                .motion(Motion.content, value: partnerHint)
         }
         .padding(Metrics.cardPadding)
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    /// What happens to somebody who is not on twodos yet, which is the only
+    /// place the address and the handle genuinely differ.
+    private var partnerHint: String {
+        switch reference {
+        case .email:
+            "If they don't have twodos yet, we'll email them an invitation."
+        case .username:
+            "Usernames only reach people who already have twodos. To invite somebody new, use their email address."
+        case nil:
+            "Their email address, or their @username if they've chosen one."
+        }
     }
 
     /// One-tap reuse of people already shared with — most sharing is with the
@@ -213,7 +239,9 @@ struct CreateListSheet: View {
             HStack(spacing: 8) {
                 ForEach(store.partners.filter { !store.isBlocked($0.id) }) { partner in
                     Button {
-                        partnerEmail = partner.email
+                        // Their handle when they have one — shorter, and it
+                        // survives them changing the address on their account.
+                        partnerRef = partner.shareReference
                         Haptics.selection()
                     } label: {
                         HStack(spacing: 6) {
@@ -226,7 +254,7 @@ struct CreateListSheet: View {
                     }
                     .buttonStyle(.glass)
                     .controlSize(.small)
-                    .tint(partnerEmail == partner.email ? Color.accentColor : .primary)
+                    .tint(partnerRef == partner.shareReference ? Color.accentColor : .primary)
                 }
             }
             .padding(.horizontal, 2)
@@ -262,7 +290,7 @@ struct CreateListSheet: View {
                 try await store.createList(
                     label: label.trimmingCharacters(in: .whitespaces),
                     favorite: isFavorite,
-                    partnerEmail: isShared ? partnerEmail.trimmingCharacters(in: .whitespaces) : nil
+                    partner: isShared ? reference : nil
                 )
                 Haptics.success()
                 dismiss()

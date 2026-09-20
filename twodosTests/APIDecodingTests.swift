@@ -106,6 +106,28 @@ struct APIDecodingTests {
         #expect(user.authProvider == "email")
     }
 
+    @Test("A handle on /me decodes, and its absence is not a failure")
+    func currentUserUsername() throws {
+        let claimed = """
+        {"statusCode":200,"id":"a6ffcc40","name":"Daniyal Test","email":"person@example.com",\
+        "emailVerified":true,"authProvider":"email","username":"sara_k"}
+        """
+        let withHandle = try decode(CurrentUser.self, claimed)
+        #expect(withHandle.username == "sara_k")
+        // The `@` is presentation — the server neither sends nor stores it.
+        #expect(withHandle.handle == "@sara_k")
+
+        // An account that never claimed one, and a server too old to know about
+        // handles, are the same state and must both be readable.
+        let none = """
+        {"statusCode":200,"id":"a6ffcc40","name":"Daniyal Test","email":"person@example.com",\
+        "emailVerified":true,"authProvider":"email"}
+        """
+        let withoutHandle = try decode(CurrentUser.self, none)
+        #expect(withoutHandle.username == nil)
+        #expect(withoutHandle.handle == nil)
+    }
+
     @Test("Regression: /me has no `data` key, so the nested shape must find nothing")
     func currentUserIsNotNested() throws {
         let json = """

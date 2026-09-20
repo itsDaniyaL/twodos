@@ -299,3 +299,101 @@ struct APIErrorTests {
         #expect(!asReturnedForBoth.suggestsEmailVerification)
     }
 }
+
+@Suite("Username rules")
+struct UsernameValidationTests {
+
+    /// These mirror the server's `^[a-z][a-z0-9_]{2,23}$`. The duplication is
+    /// deliberate — the endpoint that would answer live sits behind the auth
+    /// rate limiter — so the copy has to be held to the original exactly.
+    @Test("Accepts what the server accepts")
+    func acceptsValidHandles() {
+        #expect(Validate.isValidUsername("sara_k"))
+        #expect(Validate.isValidUsername("abc"))
+        #expect(Validate.isValidUsername("a1_2"))
+        #expect(Validate.isValidUsername(String(repeating: "a", count: 24)))
+    }
+
+    @Test("Refuses what the server refuses")
+    func refusesInvalidHandles() {
+        #expect(!Validate.isValidUsername(""))
+        #expect(!Validate.isValidUsername("ab"))                                  // too short
+        #expect(!Validate.isValidUsername(String(repeating: "a", count: 25)))     // too long
+        #expect(!Validate.isValidUsername("1sara"))                               // must start with a letter
+        #expect(!Validate.isValidUsername("_sara"))
+        #expect(!Validate.isValidUsername("sara k"))                              // no spaces
+        #expect(!Validate.isValidUsername("sara-k"))                              // no hyphens
+        #expect(!Validate.isValidUsername("sara.k"))
+        #expect(!Validate.isValidUsername("Sara_k"))                              // lowercase only
+    }
+
+    /// The field does not capitalise and the sheet lowercases before sending,
+    /// but a paste can still arrive mixed — and the message has to say which
+    /// rule was broken rather than a generic refusal.
+    @Test("Says which rule was broken")
+    func namesTheRule() {
+        #expect(Validate.username("Sara_k") == "Usernames are lowercase.")
+        #expect(Validate.username("ab") == "Use at least 3 characters.")
+        #expect(Validate.username("1sara") == "Start with a letter.")
+        #expect(Validate.username("sara-k") == "Letters, numbers and underscores only.")
+        #expect(Validate.username("sara_k") == nil)
+    }
+}
+
+@Suite("Who a list is shared with")
+struct PartnerReferenceTests {
+
+    /// Mirrors `TodosService.looksLikeUsername`: a leading `@`, or no `@` at
+    /// all. Getting this wrong does not fail loudly — it shows the user the
+    /// wrong sentence about what happens to somebody with no account.
+    @Test("Reads a handle the way the server will")
+    func detectsHandles() {
+        #expect(PartnerReference("@sara_k") == .username("sara_k"))
+        #expect(PartnerReference("sara_k") == .username("sara_k"))
+        #expect(PartnerReference("  @Sara_K  ") == .username("sara_k"))
+    }
+
+    @Test("Reads an address the way the server will")
+    func detectsAddresses() {
+        #expect(PartnerReference("sara@example.com") == .email("sara@example.com"))
+        #expect(PartnerReference("  sara@example.com ") == .email("sara@example.com"))
+    }
+
+    @Test("Nothing typed is nothing to send")
+    func emptyIsNil() {
+        #expect(PartnerReference("") == nil)
+        #expect(PartnerReference("   ") == nil)
+    }
+
+    /// The `@` is kept on the wire so the server's own detection agrees with
+    /// ours. Without it, a handle is still read as a handle — but only because
+    /// it happens to contain no `@`, which is a coincidence to rely on.
+    @Test("A handle keeps its @ on the wire")
+    func wireValues() {
+        #expect(PartnerReference("sara_k")?.wireValue == "@sara_k")
+        #expect(PartnerReference("@sara_k")?.wireValue == "@sara_k")
+        #expect(PartnerReference("sara@example.com")?.wireValue == "sara@example.com")
+    }
+
+    @Test("Refuses to send something the server can only reject")
+    func plausibility() {
+        #expect(PartnerReference("sara@example.com")?.isPlausible == true)
+        #expect(PartnerReference("@sara_k")?.isPlausible == true)
+        #expect(PartnerReference("ab")?.isPlausible == false)          // too short for a handle
+        #expect(PartnerReference("sara@")?.isPlausible == false)       // half an address
+        #expect(PartnerReference("@Sara-K")?.isPlausible == false)     // not a legal handle
+    }
+
+    /// Sharing another list with somebody already shared with should reuse
+    /// their handle: it survives them changing the address on their account,
+    /// which is the whole reason handles exist.
+    @Test("An existing partner is referred to by handle when they have one")
+    func shareReferencePrefersHandle() {
+        let withHandle = Partner(id: "1", name: "Sara", email: "sara@example.com", username: "sara_k")
+        #expect(withHandle.shareReference == "@sara_k")
+
+        let withoutHandle = Partner(id: "2", name: "Jo", email: "jo@example.com")
+        #expect(withoutHandle.shareReference == "jo@example.com")
+        #expect(withoutHandle.handle == nil)
+    }
+}

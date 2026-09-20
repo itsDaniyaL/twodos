@@ -767,8 +767,8 @@ final class AppStore {
 
     // MARK: - List mutations
 
-    func createList(label: String, favorite: Bool, partnerEmail: String?) async throws(APIError) {
-        _ = try await api.createList(label: label, favorite: favorite, partnerEmail: partnerEmail)
+    func createList(label: String, favorite: Bool, partner: PartnerReference?) async throws(APIError) {
+        _ = try await api.createList(label: label, favorite: favorite, partner: partner)
         await refreshLists()
         await refreshPartners()
     }
@@ -1434,6 +1434,23 @@ final class AppStore {
     func updateName(_ name: String) async throws(APIError) {
         _ = try await api.updateName(name)
         user?.name = name
+    }
+
+    /// Claims the handle, once and for all.
+    ///
+    /// Re-reads the account rather than writing `username` locally: this is the
+    /// one field the user can never correct, so what is shown from here on
+    /// should be what the server actually stored, not what was typed.
+    func claimUsername(_ username: String) async throws(APIError) {
+        _ = try await api.setUsername(username)
+        await refreshUser()
+    }
+
+    /// Suggestions for the handle sheet. Never throws — an empty list is a
+    /// perfectly good answer, and a failure here must not block the box the
+    /// user can type into anyway.
+    func usernameSuggestions() async -> [String] {
+        (try? await api.usernameSuggestions()) ?? []
     }
 
     /// Re-reads `/me`. Cheap, and the only way to learn what the server

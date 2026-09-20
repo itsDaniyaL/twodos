@@ -11,10 +11,10 @@ enum Validate {
     static func email(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "Enter your email address." }
-        // Deliberately permissive: the server is the real authority, and an
-        // over-strict regex rejects valid addresses.
-        let pattern = #"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$"#
-        guard trimmed.range(of: pattern, options: .regularExpression) != nil else {
+        // The pattern itself lives in `Shared/InputRules.swift`, because
+        // `PartnerReference` needs the same answer and is compiled into targets
+        // this file is not.
+        guard EmailRule.looksLikeAddress(trimmed) else {
             return "That doesn't look like an email address."
         }
         return nil
@@ -42,6 +42,15 @@ enum Validate {
         value.trimmingCharacters(in: .whitespaces).isEmpty ? "Enter your \(label.lowercased())." : nil
     }
 
+    static let usernameRules = UsernameRules.text
+
+    /// The server's handle rule. The rule and its messages live in
+    /// `Shared/InputRules.swift` — see there for why a client holds a copy at
+    /// all — and this is the form layer's way in.
+    static func username(_ value: String) -> String? { UsernameRules.problem(value) }
+
+    static func isValidUsername(_ value: String) -> Bool { UsernameRules.isValid(value) }
+
     /// Emailed tokens are alphanumeric and of no fixed length, so this only
     /// checks that *something* plausible was entered. The server is the
     /// authority on whether a token is valid — rejecting locally on a guessed
@@ -64,6 +73,10 @@ struct AuthField: View {
     var icon: String
     var contentType: UITextContentType?
     var keyboard: UIKeyboardType = .default
+    /// Overrides what the keyboard type would otherwise imply. A handle is
+    /// lowercase-only, and a field that helpfully capitalises the first letter
+    /// produces something the server rejects.
+    var autocapitalization: TextInputAutocapitalization? = nil
     var isSecure: Bool = false
     var submitLabel: SubmitLabel = .next
     var validator: ((String) -> String?)?
@@ -97,8 +110,8 @@ struct AuthField: View {
                 }
                 .textContentType(contentType)
                 .keyboardType(keyboard)
-                .textInputAutocapitalization(keyboard == .emailAddress ? .never : .sentences)
-                .autocorrectionDisabled(keyboard == .emailAddress || isSecure)
+                .textInputAutocapitalization(autocapitalization ?? (keyboard == .emailAddress ? .never : .sentences))
+                .autocorrectionDisabled(autocapitalization == .never || keyboard == .emailAddress || isSecure)
                 .submitLabel(submitLabel)
                 .focused($isFocused)
                 .onSubmit { onSubmit?() }

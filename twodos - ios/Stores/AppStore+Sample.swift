@@ -21,7 +21,8 @@ extension AppStore {
 
         let sampleUser = CurrentUser(id: me, name: "Alex Rivera",
                                      email: "alex@example.com", emailVerified: true,
-                                     authProvider: "google", hasPassword: false, avatarProvider: "google")
+                                     authProvider: "google", hasPassword: false, avatarProvider: "google",
+                                     username: "alex_r")
         let samplePartners = [
             Partner(id: them, name: "Sam Okafor", email: "sam@example.com",
                     emailVerified: true, status: APIConstants.InviteStatus.accepted),
