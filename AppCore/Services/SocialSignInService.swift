@@ -1,7 +1,11 @@
 import AuthenticationServices
 import CryptoKit
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Obtains an identity token from Google or Facebook, using the system's
 /// authentication browser rather than a vendor SDK.
@@ -400,15 +404,28 @@ extension SocialSignInService: ASWebAuthenticationPresentationContextProviding {
         keyWindowAnchor()
     }
 
-    /// The key window of the active foreground scene. When there isn't one
-    /// the flow could not have been started by a tap, so an empty anchor is
-    /// the honest answer rather than a crash. Shared by the browser session
-    /// and Apple's sheet, which want the same window.
+    /// The window the browser sheet should hang off.
+    ///
+    /// On iOS that is the key window of the active foreground scene; on the Mac
+    /// it is the key window of the application. When there isn't one the flow
+    /// could not have been started by a click, so an empty anchor is the honest
+    /// answer rather than a crash. Shared by the browser session and Apple's
+    /// sheet, which want the same window.
     private func keyWindowAnchor() -> ASPresentationAnchor {
+        #if canImport(UIKit)
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive }
 
         return scene?.keyWindow ?? ASPresentationAnchor()
+        #elseif canImport(AppKit)
+        // `ASPresentationAnchor` is `NSWindow` here, and it has no zero-argument
+        // stand-in the way `UIWindow` does — an anchor must be a real window.
+        // The main window is the one the sign-in button was clicked in.
+        return NSApplication.shared.keyWindow
+            ?? NSApplication.shared.mainWindow
+            ?? NSApplication.shared.windows.first
+            ?? ASPresentationAnchor()
+        #endif
     }
 }

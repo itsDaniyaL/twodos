@@ -22,21 +22,13 @@ enum Validate {
 
     static func isValidEmail(_ value: String) -> Bool { email(value) == nil }
 
-    static let passwordRules = "At least 8 characters, with a number and a symbol."
+    static let passwordRules = PasswordRule.text
 
-    static func password(_ value: String) -> String? {
-        guard !value.isEmpty else { return "Enter a password." }
-        guard value.count >= 8 else { return "Use at least 8 characters." }
-        guard value.rangeOfCharacter(from: .decimalDigits) != nil else {
-            return "Include at least one number."
-        }
-        guard value.rangeOfCharacter(from: CharacterSet.alphanumerics.inverted) != nil else {
-            return "Include at least one symbol."
-        }
-        return nil
-    }
+    /// The rule and its messages live in `Shared/InputRules.swift`, because the
+    /// Mac sign-up form needs the same answers and cannot see this file.
+    static func password(_ value: String) -> String? { PasswordRule.problem(value) }
 
-    static func isValidPassword(_ value: String) -> Bool { password(value) == nil }
+    static func isValidPassword(_ value: String) -> Bool { PasswordRule.isValid(value) }
 
     static func required(_ value: String, _ label: String) -> String? {
         value.trimmingCharacters(in: .whitespaces).isEmpty ? "Enter your \(label.lowercased())." : nil
@@ -77,6 +69,9 @@ struct AuthField: View {
     /// lowercase-only, and a field that helpfully capitalises the first letter
     /// produces something the server rejects.
     var autocapitalization: TextInputAutocapitalization? = nil
+    /// Set alongside `autocapitalization: .never` for fields (like a handle)
+    /// where the autocorrect suggestion strip would fight the user.
+    var autocorrectionDisabled: Bool = false
     var isSecure: Bool = false
     var submitLabel: SubmitLabel = .next
     var validator: ((String) -> String?)?
@@ -111,7 +106,7 @@ struct AuthField: View {
                 .textContentType(contentType)
                 .keyboardType(keyboard)
                 .textInputAutocapitalization(autocapitalization ?? (keyboard == .emailAddress ? .never : .sentences))
-                .autocorrectionDisabled(autocapitalization == .never || keyboard == .emailAddress || isSecure)
+                .autocorrectionDisabled(autocorrectionDisabled || keyboard == .emailAddress || isSecure)
                 .submitLabel(submitLabel)
                 .focused($isFocused)
                 .onSubmit { onSubmit?() }

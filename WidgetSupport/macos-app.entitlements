@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The Mac target is sandboxed and hardened, which iOS does not have to
+	     ask for. Everything below is a capability the app would silently lose
+	     without it: a sandboxed app that cannot open a socket looks exactly
+	     like a server outage. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- Outgoing only. The app talks to the API and to the providers' sign-in
+	     pages; nothing ever connects *to* it, so the server entitlement stays
+	     off. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
+	<!-- Place reminders. A laptop genuinely moves between home and the office,
+	     which is why location survived the cut to macOS. -->
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
+
+	<key>aps-environment</key>
+	<string>development</string>
+
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+
+	<!-- The same group and keychain group as every other target, so a session
+	     saved on one is readable by the widgets. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.afzaalahmadzeeshan.ios.twodos</string>
+	</array>
+
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.afzaalahmadzeeshan.ios.twodos.shared</string>
+	</array>
+</dict>
+</plist>

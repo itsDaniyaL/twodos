@@ -1,5 +1,9 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 import OSLog
 
 /// Keeps the server's idea of this device in step with Apple's.
@@ -37,7 +41,14 @@ final class PushRegistrationService: NSObject {
     /// Safe to call on every launch: iOS answers from cache when it already has
     /// one, so this does not prompt and does not hit the network.
     func refresh() {
+        // Same request, two application objects. Both platforms answer from
+        // cache when they already hold a token, so this neither prompts nor
+        // hits the network on a warm launch.
+        #if canImport(UIKit)
         UIApplication.shared.registerForRemoteNotifications()
+        #elseif canImport(AppKit)
+        NSApplication.shared.registerForRemoteNotifications()
+        #endif
     }
 
     /// Called from the app delegate when Apple hands over a token.

@@ -1,9 +1,4 @@
-Rebuilt from the ground up as a native app — faster, far smaller, and properly at home on every Apple device.
-
-• Place reminders: pin a shop to a list and get reminded when you arrive
-• A native Apple Watch app, with complications
-• Home Screen and Lock Screen widgets, and Live Activities
-• Assign tasks to whoever's doing them, or race each other with challenges
-• Siri and Spotlight support
-• Full offline support — everything syncs when you're back
-• iPad: your lists stay beside the one you're reading
+• Sign in with Google or Facebook, or with a code emailed to you
+• Your profile picture now comes across automatically, so shared lists are easier to tell apart
+• Claim a username, and share a list by @handle instead of an email address
+• Tasks can carry a note — plus fixes to invites, list deletion and overdue labels

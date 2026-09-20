@@ -56,6 +56,7 @@ struct SignUpView: View {
             AuthField(title: "Username (optional)", text: $username, icon: "at",
                       contentType: nil, keyboard: .asciiCapable,
                       autocapitalization: .never,
+                      autocorrectionDisabled: true,
                       validator: { value in
                           value.trimmingCharacters(in: .whitespaces).isEmpty
                               ? nil

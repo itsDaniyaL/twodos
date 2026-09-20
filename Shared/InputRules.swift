@@ -57,3 +57,28 @@ enum UsernameRules {
 
     static func isValid(_ value: String) -> Bool { problem(value) == nil }
 }
+
+/// The password rule, shared for the same reason the other two are: the Mac
+/// sign-up form needs it and lives in a target that cannot see `Validate`.
+///
+/// The bounds are the client's own — the server has its own limits and is the
+/// authority — so this is about telling somebody what is missing *before* a
+/// round trip, not about deciding what is acceptable.
+enum PasswordRule {
+    static let text = "At least 8 characters, with a number and a symbol."
+
+    /// Which requirement is unmet, or nil when none is.
+    static func problem(_ value: String) -> String? {
+        guard !value.isEmpty else { return "Enter a password." }
+        guard value.count >= 8 else { return "Use at least 8 characters." }
+        guard value.rangeOfCharacter(from: .decimalDigits) != nil else {
+            return "Include at least one number."
+        }
+        guard value.rangeOfCharacter(from: CharacterSet.alphanumerics.inverted) != nil else {
+            return "Include at least one symbol."
+        }
+        return nil
+    }
+
+    static func isValid(_ value: String) -> Bool { problem(value) == nil }
+}

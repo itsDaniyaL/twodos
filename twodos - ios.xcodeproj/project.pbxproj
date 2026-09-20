@@ -9,11 +9,12 @@
 /* Begin PBXBuildFile section */
 		1AC3149F3017D5350006F92C /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1AC3149E3017D5350006F92C /* AppIcon.icon */; };
 		1AC314A03017D5350006F92C /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1AC3149E3017D5350006F92C /* AppIcon.icon */; };
-		1AE799FC301709DF00ED7140 /* twodos - watchos Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 1AE799F2301709D500ED7140 /* twodos - watchos Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1AC314A13017D5350006F92C /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1AC3149E3017D5350006F92C /* AppIcon.icon */; };
+		1AE799FC301709DF00ED7140 /* watchos.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 1AE799F2301709D500ED7140 /* watchos.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1AFIREBASE000000000004 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 1AFIREBASE000000000002 /* FirebaseAnalytics */; };
 		1AFIREBASE000000000005 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 1AFIREBASE000000000003 /* FirebaseCrashlytics */; };
-		1AWIOS000000000000000D /* twodos - ios widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1AWIOS0000000000000002 /* twodos - ios widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		1AWWCH000000000000000D /* twodos - watchos widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1AWWCH0000000000000002 /* twodos - watchos widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1AWIOS000000000000000D /* ios widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1AWIOS0000000000000002 /* ios widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1AWWCH000000000000000D /* watchos widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1AWWCH0000000000000002 /* watchos widgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,7 +55,7 @@
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
-				1AE799FC301709DF00ED7140 /* twodos - watchos Watch App.app in Embed Watch Content */,
+				1AE799FC301709DF00ED7140 /* watchos.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -65,7 +66,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				1AWIOS000000000000000D /* twodos - ios widgets.appex in Embed Foundation Extensions */,
+				1AWIOS000000000000000D /* ios widgets.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -76,7 +77,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				1AWWCH000000000000000D /* twodos - watchos widgets.appex in Embed Foundation Extensions */,
+				1AWWCH000000000000000D /* watchos widgets.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -85,14 +86,25 @@
 
 /* Begin PBXFileReference section */
 		1AC3149E3017D5350006F92C /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
-		1AE799F2301709D500ED7140 /* twodos - watchos Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "twodos - watchos Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		1AFECA4F3016CDB700FF871A /* twodos - ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "twodos - ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1AC5996930602CE900EEB848 /* macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = macos.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1AE799F2301709D500ED7140 /* watchos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = watchos.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1AFECA4F3016CDB700FF871A /* ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ios.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1ATEST0000000000000003 /* twodosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = twodosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		1AWIOS0000000000000002 /* twodos - ios widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "twodos - ios widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
-		1AWWCH0000000000000002 /* twodos - watchos widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "twodos - watchos widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1AWIOS0000000000000002 /* ios widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "ios widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1AWWCH0000000000000002 /* watchos widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "watchos widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		1AAPPCORE00000000000001 /* AppCore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AppCore;
+			sourceTree = "<group>";
+		};
+		1AC5996A30602CE900EEB848 /* macos */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = macos;
+			sourceTree = "<group>";
+		};
 		1AE799F3301709D600ED7140 /* twodos - watchos Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "twodos - watchos Watch App";
@@ -131,6 +143,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		1AC5996630602CE900EEB848 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1AE799EF301709D500ED7140 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -175,6 +194,7 @@
 			isa = PBXGroup;
 			children = (
 				1ASHARED0000000000000001 /* Shared */,
+				1AAPPCORE00000000000001 /* AppCore */,
 				1ATEST0000000000000002 /* twodosTests */,
 			);
 			name = "Recovered References";
@@ -189,6 +209,7 @@
 				1AWIOS0000000000000003 /* twodos - ios widgets */,
 				1AWWCH0000000000000003 /* twodos - watchos widgets */,
 				1AWSHR0000000000000001 /* WidgetShared */,
+				1AC5996A30602CE900EEB848 /* macos */,
 				1AFECA503016CDB700FF871A /* Products */,
 				1AE79A0130170B6800ED7140 /* Recovered References */,
 			);
@@ -197,11 +218,12 @@
 		1AFECA503016CDB700FF871A /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1AFECA4F3016CDB700FF871A /* twodos - ios.app */,
+				1AFECA4F3016CDB700FF871A /* ios.app */,
 				1ATEST0000000000000003 /* twodosTests.xctest */,
-				1AE799F2301709D500ED7140 /* twodos - watchos Watch App.app */,
-				1AWIOS0000000000000002 /* twodos - ios widgets.appex */,
-				1AWWCH0000000000000002 /* twodos - watchos widgets.appex */,
+				1AE799F2301709D500ED7140 /* watchos.app */,
+				1AWIOS0000000000000002 /* ios widgets.appex */,
+				1AWWCH0000000000000002 /* watchos widgets.appex */,
+				1AC5996930602CE900EEB848 /* macos.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -209,9 +231,33 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1AE799F1301709D500ED7140 /* twodos - watchos Watch App */ = {
+		1AC5996830602CE900EEB848 /* macos */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1AE79A00301709DF00ED7140 /* Build configuration list for PBXNativeTarget "twodos - watchos Watch App" */;
+			buildConfigurationList = 1AC5997130602CEB00EEB848 /* Build configuration list for PBXNativeTarget "macos" */;
+			buildPhases = (
+				1AC5996530602CE900EEB848 /* Sources */,
+				1AC5996630602CE900EEB848 /* Frameworks */,
+				1AC5996730602CE900EEB848 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				1AAPPCORE00000000000001 /* AppCore */,
+				1AC5996A30602CE900EEB848 /* macos */,
+				1ASHARED0000000000000001 /* Shared */,
+			);
+			name = macos;
+			packageProductDependencies = (
+			);
+			productName = macos;
+			productReference = 1AC5996930602CE900EEB848 /* macos.app */;
+			productType = "com.apple.product-type.application";
+		};
+		1AE799F1301709D500ED7140 /* watchos */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1AE79A00301709DF00ED7140 /* Build configuration list for PBXNativeTarget "watchos" */;
 			buildPhases = (
 				1AE799EE301709D500ED7140 /* Sources */,
 				1AE799EF301709D500ED7140 /* Frameworks */,
@@ -227,16 +273,16 @@
 				1AE799F3301709D600ED7140 /* twodos - watchos Watch App */,
 				1ASHARED0000000000000001 /* Shared */,
 			);
-			name = "twodos - watchos Watch App";
+			name = watchos;
 			packageProductDependencies = (
 			);
 			productName = "twodos - watchos Watch App";
-			productReference = 1AE799F2301709D500ED7140 /* twodos - watchos Watch App.app */;
+			productReference = 1AE799F2301709D500ED7140 /* watchos.app */;
 			productType = "com.apple.product-type.application";
 		};
-		1AFECA4E3016CDB700FF871A /* twodos - ios */ = {
+		1AFECA4E3016CDB700FF871A /* ios */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1AFECA5A3016CDBC00FF871A /* Build configuration list for PBXNativeTarget "twodos - ios" */;
+			buildConfigurationList = 1AFECA5A3016CDBC00FF871A /* Build configuration list for PBXNativeTarget "ios" */;
 			buildPhases = (
 				1AFECA4B3016CDB700FF871A /* Sources */,
 				1AFECA4C3016CDB700FF871A /* Frameworks */,
@@ -252,16 +298,17 @@
 				1AE799FB301709DF00ED7140 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				1AAPPCORE00000000000001 /* AppCore */,
 				1AFECA513016CDB700FF871A /* twodos - ios */,
 				1ASHARED0000000000000001 /* Shared */,
 			);
-			name = "twodos - ios";
+			name = ios;
 			packageProductDependencies = (
 				1AFIREBASE000000000002 /* FirebaseAnalytics */,
 				1AFIREBASE000000000003 /* FirebaseCrashlytics */,
 			);
 			productName = "twodos - ios";
-			productReference = 1AFECA4F3016CDB700FF871A /* twodos - ios.app */;
+			productReference = 1AFECA4F3016CDB700FF871A /* ios.app */;
 			productType = "com.apple.product-type.application";
 		};
 		1ATEST0000000000000001 /* twodosTests */ = {
@@ -287,9 +334,9 @@
 			productReference = 1ATEST0000000000000003 /* twodosTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		1AWIOS0000000000000001 /* twodos - ios widgets */ = {
+		1AWIOS0000000000000001 /* ios widgets */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1AWIOS0000000000000007 /* Build configuration list for PBXNativeTarget "twodos - ios widgets" */;
+			buildConfigurationList = 1AWIOS0000000000000007 /* Build configuration list for PBXNativeTarget "ios widgets" */;
 			buildPhases = (
 				1AWIOS0000000000000004 /* Sources */,
 				1AWIOS0000000000000005 /* Frameworks */,
@@ -304,16 +351,16 @@
 				1AWIOS0000000000000003 /* twodos - ios widgets */,
 				1AWSHR0000000000000001 /* WidgetShared */,
 			);
-			name = "twodos - ios widgets";
+			name = "ios widgets";
 			packageProductDependencies = (
 			);
 			productName = "twodos - ios widgets";
-			productReference = 1AWIOS0000000000000002 /* twodos - ios widgets.appex */;
+			productReference = 1AWIOS0000000000000002 /* ios widgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		1AWWCH0000000000000001 /* twodos - watchos widgets */ = {
+		1AWWCH0000000000000001 /* watchos widgets */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1AWWCH0000000000000007 /* Build configuration list for PBXNativeTarget "twodos - watchos widgets" */;
+			buildConfigurationList = 1AWWCH0000000000000007 /* Build configuration list for PBXNativeTarget "watchos widgets" */;
 			buildPhases = (
 				1AWWCH0000000000000004 /* Sources */,
 				1AWWCH0000000000000005 /* Frameworks */,
@@ -328,11 +375,11 @@
 				1AWSHR0000000000000001 /* WidgetShared */,
 				1AWWCH0000000000000003 /* twodos - watchos widgets */,
 			);
-			name = "twodos - watchos widgets";
+			name = "watchos widgets";
 			packageProductDependencies = (
 			);
 			productName = "twodos - watchos widgets";
-			productReference = 1AWWCH0000000000000002 /* twodos - watchos widgets.appex */;
+			productReference = 1AWWCH0000000000000002 /* watchos widgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -342,9 +389,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2660;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					1AC5996830602CE900EEB848 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 					1AE799F1301709D500ED7140 = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -380,16 +430,25 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				1AFECA4E3016CDB700FF871A /* twodos - ios */,
-				1AWIOS0000000000000001 /* twodos - ios widgets */,
-				1AE799F1301709D500ED7140 /* twodos - watchos Watch App */,
-				1AWWCH0000000000000001 /* twodos - watchos widgets */,
+				1AFECA4E3016CDB700FF871A /* ios */,
+				1AWIOS0000000000000001 /* ios widgets */,
+				1AE799F1301709D500ED7140 /* watchos */,
+				1AWWCH0000000000000001 /* watchos widgets */,
 				1ATEST0000000000000001 /* twodosTests */,
+				1AC5996830602CE900EEB848 /* macos */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		1AC5996730602CE900EEB848 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1AC314A13017D5350006F92C /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1AE799F0301709D500ED7140 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -450,6 +509,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		1AC5996530602CE900EEB848 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1AE799EE301709D500ED7140 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -490,27 +556,99 @@
 /* Begin PBXTargetDependency section */
 		1AE799FB301709DF00ED7140 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 1AE799F1301709D500ED7140 /* twodos - watchos Watch App */;
+			target = 1AE799F1301709D500ED7140 /* watchos */;
 			targetProxy = 1AE799FA301709DF00ED7140 /* PBXContainerItemProxy */;
 		};
 		1ATEST000000000000000A /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 1AFECA4E3016CDB700FF871A /* twodos - ios */;
+			target = 1AFECA4E3016CDB700FF871A /* ios */;
 			targetProxy = 1ATEST000000000000000B /* PBXContainerItemProxy */;
 		};
 		1AWIOS000000000000000B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 1AWIOS0000000000000001 /* twodos - ios widgets */;
+			target = 1AWIOS0000000000000001 /* ios widgets */;
 			targetProxy = 1AWIOS000000000000000A /* PBXContainerItemProxy */;
 		};
 		1AWWCH000000000000000B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 1AWWCH0000000000000001 /* twodos - watchos widgets */;
+			target = 1AWWCH0000000000000001 /* watchos widgets */;
 			targetProxy = 1AWWCH000000000000000A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		1AC5997230602CEB00EEB848 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/macos-app.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V2Y9RFPG3D;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = twodos;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodoapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		1AC5997330602CEB00EEB848 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/macos-app.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V2Y9RFPG3D;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = twodos;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodoapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		1AE799FE301709DF00ED7140 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -519,7 +657,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/watch-app.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -532,7 +670,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -556,7 +694,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/watch-app.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 60;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -569,7 +707,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -713,7 +851,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "twodos - ios/twodos - ios.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 59;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -734,7 +872,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -754,7 +892,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "twodos - ios/twodos - ios.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 59;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -775,7 +913,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -832,7 +970,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/ios-widgets.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 58;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -845,7 +983,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -864,7 +1002,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/ios-widgets.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 58;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -877,7 +1015,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -896,7 +1034,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/watchos-widgets.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 59;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -908,7 +1046,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.watchkitapp.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -929,7 +1067,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/watchos-widgets.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 59;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -941,7 +1079,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodos.watchkitapp.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -959,7 +1097,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1AE79A00301709DF00ED7140 /* Build configuration list for PBXNativeTarget "twodos - watchos Watch App" */ = {
+		1AC5997130602CEB00EEB848 /* Build configuration list for PBXNativeTarget "macos" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1AC5997230602CEB00EEB848 /* Debug */,
+				1AC5997330602CEB00EEB848 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1AE79A00301709DF00ED7140 /* Build configuration list for PBXNativeTarget "watchos" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1AE799FE301709DF00ED7140 /* Debug */,
@@ -977,7 +1124,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1AFECA5A3016CDBC00FF871A /* Build configuration list for PBXNativeTarget "twodos - ios" */ = {
+		1AFECA5A3016CDBC00FF871A /* Build configuration list for PBXNativeTarget "ios" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1AFECA5B3016CDBC00FF871A /* Debug */,
@@ -995,7 +1142,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1AWIOS0000000000000007 /* Build configuration list for PBXNativeTarget "twodos - ios widgets" */ = {
+		1AWIOS0000000000000007 /* Build configuration list for PBXNativeTarget "ios widgets" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1AWIOS0000000000000008 /* Debug */,
@@ -1004,7 +1151,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1AWWCH0000000000000007 /* Build configuration list for PBXNativeTarget "twodos - watchos widgets" */ = {
+		1AWWCH0000000000000007 /* Build configuration list for PBXNativeTarget "watchos widgets" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1AWWCH0000000000000008 /* Debug */,

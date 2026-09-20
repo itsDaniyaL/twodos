@@ -1,3 +1,4 @@
+#if os(iOS)
 import Foundation
 import WatchConnectivity
 import OSLog
@@ -185,3 +186,42 @@ extension PhoneConnectivityService: WCSessionDelegate {
         Task { @MainActor in await self.onWatchMutation?() }
     }
 }
+
+#else
+import Foundation
+
+/// The Mac stand-in for ``PhoneConnectivityService``.
+///
+/// WatchConnectivity pairs a watch with the *iPhone* it was set up on; a Mac is
+/// never one end of that link, so there is no session to activate and nothing
+/// to push. The type exists with the same surface so `AppStore` can wire it up
+/// unconditionally.
+///
+/// A watch therefore keeps syncing through the iPhone exactly as before, and
+/// the Mac neither helps nor interferes — which is the correct behaviour, not
+/// a limitation: two devices both claiming to be the watch's phone would fight
+/// over which payload is current.
+@MainActor
+@Observable
+final class PhoneConnectivityService: NSObject {
+    static let shared = PhoneConnectivityService()
+    private override init() { super.init() }
+
+    var currentPayload: (() -> [String: Any])?
+    var onWatchMutation: (() async -> Void)?
+
+    func activate() {}
+
+    /// Mirrors the real signature exactly, defaults included — a stand-in that
+    /// drifts from the thing it stands in for fails the build on the platform
+    /// nobody is looking at.
+    func push(
+        token: String?,
+        expiresAt: Date?,
+        lists: [TodoList],
+        currentUserId: String?,
+        partnerNames: [String: String] = [:],
+        partnerAvatarURLs: [String: String] = [:]
+    ) {}
+}
+#endif

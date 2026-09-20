@@ -1,3 +1,4 @@
+#if os(iOS)
 import Foundation
 import ActivityKit
 import OSLog
@@ -130,3 +131,35 @@ final class LiveActivityService {
         )
     }
 }
+
+#else
+import Foundation
+
+/// The Mac stand-in for ``LiveActivityService``.
+///
+/// ActivityKit is iOS-only — a Live Activity is a Lock Screen and Dynamic
+/// Island presentation, and the Mac has neither. The type exists here with the
+/// same surface so `AppStore` can call it unconditionally; every method does
+/// nothing and `isRunning` is always false, so the store's `if isRunning`
+/// branches simply never fire.
+///
+/// Shimming here rather than guarding the ten call sites keeps the platform
+/// difference in the one file that is *about* the platform difference.
+@MainActor
+final class LiveActivityService {
+    static let shared = LiveActivityService()
+    private init() {}
+
+    var isRunning: Bool { false }
+    var currentListId: String? { nil }
+
+    func begin(placeId: String, placeName: String, list: TodoList) {}
+    func update(list: TodoList) {}
+    /// No `showing:` parameter here, unlike the iOS original: its type is
+    /// `PlaceVisitAttributes.ContentState`, which lives behind `#if os(iOS)` in
+    /// Shared and does not exist on this platform. Every call site passes no
+    /// argument, so the surface the store actually uses is identical.
+    func end() async {}
+    func endIfAt(placeId: String) async {}
+}
+#endif

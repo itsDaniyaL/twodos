@@ -1,6 +1,8 @@
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 // MARK: - Brand palette
@@ -183,9 +185,20 @@ extension Color {
     init(light: UInt32, dark: UInt32) {
         #if os(watchOS)
         self.init(rgb: dark)
-        #else
+        #elseif canImport(UIKit)
         self.init(uiColor: UIColor { traits in
             UIColor(rgb: traits.userInterfaceStyle == .dark ? dark : light)
+        })
+        #elseif canImport(AppKit)
+        // The same idea in AppKit's vocabulary: a colour that resolves itself
+        // whenever it is drawn, so the palette follows a change of appearance
+        // without anything being rebuilt. `bestMatch` is how an appearance is
+        // asked which of the two families it belongs to — checking the name
+        // directly misses the high-contrast and vibrant variants, which are
+        // distinct appearances that still want the dark value.
+        self.init(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            return NSColor(rgb: isDark ? dark : light)
         })
         #endif
     }
@@ -199,11 +212,22 @@ extension Color {
     }
 }
 
-#if !os(watchOS)
+#if !os(watchOS) && canImport(UIKit)
 extension UIColor {
     convenience init(rgb: UInt32) {
         self.init(
             red: CGFloat((rgb >> 16) & 0xFF) / 255,
+            green: CGFloat((rgb >> 8) & 0xFF) / 255,
+            blue: CGFloat(rgb & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+#elseif canImport(AppKit)
+extension NSColor {
+    convenience init(rgb: UInt32) {
+        self.init(
+            srgbRed: CGFloat((rgb >> 16) & 0xFF) / 255,
             green: CGFloat((rgb >> 8) & 0xFF) / 255,
             blue: CGFloat(rgb & 0xFF) / 255,
             alpha: 1

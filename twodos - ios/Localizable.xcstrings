@@ -312,6 +312,15 @@
     "Choose one on the left, or make a new one." : {
 
     },
+    "Claim @%@" : {
+
+    },
+    "Claim @%@?" : {
+
+    },
+    "Claim this username" : {
+
+    },
     "Clear" : {
 
     },
@@ -441,6 +450,9 @@
     "Edit text" : {
 
     },
+    "Email address or @username" : {
+
+    },
     "Email me a code" : {
 
     },
@@ -507,6 +519,9 @@
     "Hide password" : {
 
     },
+    "How a partner finds you instead of typing your email address. You can skip this and choose one later." : {
+
+    },
     "I already have an account" : {
 
     },
@@ -523,9 +538,6 @@
 
     },
     "I'll do this" : {
-
-    },
-    "If they don't have twodos yet, we'll email them an invitation." : {
 
     },
     "In %lld min" : {
@@ -571,6 +583,9 @@
 
     },
     "Last seen %@" : {
+
+    },
+    "Let me think" : {
 
     },
     "Linked" : {
@@ -787,9 +802,6 @@
     "Overdue since yesterday" : {
 
     },
-    "Partner's email address" : {
-
-    },
     "Partners" : {
 
     },
@@ -976,6 +988,9 @@
     "Submit" : {
 
     },
+    "Suggestions" : {
+
+    },
     "Tells you how much is left across your lists." : {
 
     },
@@ -988,7 +1003,7 @@
     "That doesn't match the email on this account." : {
 
     },
-    "Their email address" : {
+    "Their email address or username" : {
 
     },
     "Theme" : {
@@ -1016,6 +1031,9 @@
 
     },
     "This weekend" : {
+
+    },
+    "This will be your username for good — it can't be changed or given up later." : {
 
     },
     "Tick an item off" : {
@@ -1094,6 +1112,9 @@
 
     },
     "Use my initials" : {
+
+    },
+    "Username %@" : {
 
     },
     "Verification code" : {

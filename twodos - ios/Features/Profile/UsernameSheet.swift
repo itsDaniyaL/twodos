@@ -53,6 +53,7 @@ struct UsernameSheet: View {
                     contentType: nil,
                     keyboard: .asciiCapable,
                     autocapitalization: .never,
+                    autocorrectionDisabled: true,
                     submitLabel: .done,
                     validator: { Validate.username($0.lowercased()) },
                     onSubmit: { if canSubmit { isConfirming = true } }
