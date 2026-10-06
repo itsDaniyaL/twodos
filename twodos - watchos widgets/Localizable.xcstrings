@@ -65,10 +65,34 @@
     "1 day overdue" : {
 
     },
+    "A to Z" : {
+
+    },
+    "Alarm" : {
+
+    },
     "All %lld done" : {
 
     },
     "All clear" : {
+
+    },
+    "Apricot" : {
+
+    },
+    "Arrive" : {
+
+    },
+    "Both of us" : {
+
+    },
+    "Custom order" : {
+
+    },
+    "Date created" : {
+
+    },
+    "Deadline" : {
 
     },
     "Done" : {
@@ -78,6 +102,18 @@
 
     },
     "Empty list" : {
+
+    },
+    "Every day" : {
+
+    },
+    "Every month" : {
+
+    },
+    "Every week" : {
+
+    },
+    "Graphite" : {
 
     },
     "How much is left, at a glance." : {
@@ -95,19 +131,52 @@
     "Last seen %@" : {
 
     },
+    "Leave" : {
+
+    },
+    "Lime" : {
+
+    },
     "List" : {
 
     },
     "Marks a twodos item as done, or not done." : {
 
     },
+    "Meadow" : {
+
+    },
+    "Most recently touched first" : {
+
+    },
+    "Name" : {
+
+    },
+    "Newest first" : {
+
+    },
     "No items yet" : {
+
+    },
+    "Not urgent" : {
 
     },
     "Nothing outstanding" : {
 
     },
+    "Ocean" : {
+
+    },
     "Offline" : {
+
+    },
+    "Once" : {
+
+    },
+    "Only me" : {
+
+    },
+    "Only my partner" : {
 
     },
     "open" : {
@@ -125,10 +194,25 @@
     "Overdue since yesterday" : {
 
     },
+    "Priority" : {
+
+    },
+    "Recently used" : {
+
+    },
     "Sign in to twodos" : {
 
     },
+    "Soonest deadline first" : {
+
+    },
+    "Sunset" : {
+
+    },
     "The most pressing thing outstanding." : {
+
+    },
+    "The order you arranged" : {
 
     },
     "Tick an item off" : {
@@ -143,7 +227,25 @@
     "twodos" : {
 
     },
+    "Unknown person" : {
+
+    },
     "Up next" : {
+
+    },
+    "Urgent" : {
+
+    },
+    "Urgent lists first" : {
+
+    },
+    "Violet" : {
+
+    },
+    "When I arrive" : {
+
+    },
+    "When I leave" : {
 
     }
   },

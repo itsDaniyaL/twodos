@@ -49,13 +49,28 @@
     "1 day overdue" : {
 
     },
+    "A to Z" : {
+
+    },
     "Add item" : {
+
+    },
+    "Alarm" : {
 
     },
     "All %lld done" : {
 
     },
     "All done" : {
+
+    },
+    "Apricot" : {
+
+    },
+    "Arrive" : {
+
+    },
+    "Both of us" : {
 
     },
     "Completed" : {
@@ -65,6 +80,15 @@
 
     },
     "Create one on your iPhone." : {
+
+    },
+    "Custom order" : {
+
+    },
+    "Date created" : {
+
+    },
+    "Deadline" : {
 
     },
     "Done" : {
@@ -79,6 +103,18 @@
     "Empty list" : {
 
     },
+    "Every day" : {
+
+    },
+    "Every month" : {
+
+    },
+    "Every week" : {
+
+    },
+    "Graphite" : {
+
+    },
     "In %lld min" : {
 
     },
@@ -89,6 +125,12 @@
 
     },
     "Last seen %@" : {
+
+    },
+    "Leave" : {
+
+    },
+    "Lime" : {
 
     },
     "List" : {
@@ -106,6 +148,18 @@
     "Marks as not done" : {
 
     },
+    "Meadow" : {
+
+    },
+    "Most recently touched first" : {
+
+    },
+    "Name" : {
+
+    },
+    "Newest first" : {
+
+    },
     "No items yet" : {
 
     },
@@ -118,10 +172,25 @@
     "Not completed" : {
 
     },
+    "Not urgent" : {
+
+    },
     "Nothing left on any list." : {
 
     },
+    "Ocean" : {
+
+    },
     "Offline" : {
+
+    },
+    "Once" : {
+
+    },
+    "Only me" : {
+
+    },
+    "Only my partner" : {
 
     },
     "Open twodos on iPhone" : {
@@ -133,10 +202,25 @@
     "Overdue since yesterday" : {
 
     },
+    "Priority" : {
+
+    },
+    "Recently used" : {
+
+    },
     "Sign in on your iPhone once and your lists will appear here." : {
 
     },
     "Signed out" : {
+
+    },
+    "Soonest deadline first" : {
+
+    },
+    "Sunset" : {
+
+    },
+    "The order you arranged" : {
 
     },
     "Tick an item off" : {
@@ -154,7 +238,25 @@
     "twodos" : {
 
     },
+    "Unknown person" : {
+
+    },
     "Up next" : {
+
+    },
+    "Urgent" : {
+
+    },
+    "Urgent lists first" : {
+
+    },
+    "Violet" : {
+
+    },
+    "When I arrive" : {
+
+    },
+    "When I leave" : {
 
     },
     "Your session ran out. Open twodos on your iPhone to sign back in." : {
