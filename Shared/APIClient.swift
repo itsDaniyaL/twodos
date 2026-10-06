@@ -33,6 +33,10 @@ actor APIClient {
 
     private let logger = Logger(subsystem: "app.twodos", category: "api")
     private let session: URLSession
+    /// File uploads and downloads. Separate because the main session's
+    /// 30-second resource timeout is right for JSON and wrong for a 5 MB photo
+    /// on a weak connection.
+    private let transferSession: URLSession
     private let decoder: JSONDecoder
     private var refreshTask: Task<Bool, Never>?
 
@@ -84,6 +88,12 @@ actor APIClient {
         config.waitsForConnectivity = false
         config.httpAdditionalHeaders = ["Accept": "application/json"]
         session = URLSession(configuration: config)
+
+        let transfer = URLSessionConfiguration.default
+        transfer.timeoutIntervalForRequest = 60
+        transfer.timeoutIntervalForResource = 300
+        transfer.waitsForConnectivity = false
+        transferSession = URLSession(configuration: transfer)
 
         decoder = JSONDecoder()
         // The API mixes ISO-8601 with and without fractional seconds.
@@ -491,6 +501,19 @@ extension APIClient {
         try await perform("GET", "/api/account/partners", as: FlexibleArray<Partner>.self).values
     }
 
+    /// Every partner relationship — accepted, pending, declined and blocked —
+    /// with counts computed from the same array. Supersedes `partners()`,
+    /// which leaves out declined and blocked people entirely; that omission is
+    /// how a shared list ended up naming nobody.
+    func partnerDirectory() async throws(APIError) -> PartnerDirectory {
+        try await perform("GET", "/api/v1/account/partner-directory")
+    }
+
+    /// Invitations this user sent that nobody has answered yet.
+    func sentInvites() async throws(APIError) -> [SentInvite] {
+        try await perform("GET", "/api/v1/account/invites/sent", as: FlexibleArray<SentInvite>.self).values
+    }
+
     func account(id: String) async throws(APIError) -> Partner {
         try await perform("GET", "/api/account/id/\(id)")
     }
@@ -822,6 +845,163 @@ extension APIClient {
                               body: ["locationLat": nil, "locationLng": nil,
                                      "locationRadius": nil, "locationTrigger": nil,
                                      "locationName": nil])
+    }
+}
+
+// MARK: - Attachments
+
+extension APIClient {
+    /// Uploads one file and attaches it to a task.
+    ///
+    /// `mimeType` is recorded by the server as *declared* and never trusted —
+    /// it sniffs the bytes itself. Sending a sensible one still matters: it is
+    /// what lets the record say when the two disagree.
+    ///
+    /// Every limit message (`FILE_TOO_LARGE`, `TASK_BUCKET_FULL`, …) is written
+    /// to be shown verbatim, so it arrives as `.server` like any other refusal.
+    func uploadMedia(
+        listId: String,
+        todoId: String,
+        fileName: String,
+        mimeType: String,
+        data: Data
+    ) async throws(APIError) -> TodoMedia {
+        let path = "/api/v1/todos/\(listId)/items/\(todoId)/media"
+        let boundary = "twodos-\(UUID().uuidString)"
+        let body = Self.multipartBody(
+            boundary: boundary, field: "file",
+            fileName: fileName, mimeType: mimeType, data: data
+        )
+
+        let (payload, _) = try await authorizedTransfer(path) {
+            var request = URLRequest(url: Self.baseURL.appendingPathComponent(path))
+            request.httpMethod = "POST"
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+            return request
+        }
+
+        let envelope: Envelope<TodoMedia>
+        do {
+            envelope = try decoder.decode(Envelope<TodoMedia>.self, from: payload)
+        } catch {
+            throw APIError.decoding("\(path): \(error)")
+        }
+        guard envelope.statusCode == 200 else {
+            throw APIError.server(
+                envelope.statusMessage ?? "The file could not be attached. Please try again.",
+                reason: envelope.reason
+            )
+        }
+        guard let media = envelope.data else { throw APIError.decoding("\(path): success with no data") }
+        return media
+    }
+
+    /// The raw bytes of an attachment.
+    ///
+    /// The success response is the file itself, always as
+    /// `application/octet-stream`; a refusal is the usual JSON envelope, still
+    /// with HTTP 200. The content type is the only thing that tells them apart.
+    func downloadMedia(id: String) async throws(APIError) -> Data {
+        let path = "/api/v1/media/\(id)"
+        let (payload, response) = try await authorizedTransfer(path) {
+            var request = URLRequest(url: Self.baseURL.appendingPathComponent(path))
+            request.httpMethod = "GET"
+            request.setValue("*/*", forHTTPHeaderField: "Accept")
+            return request
+        }
+
+        if Self.isJSON(response), let status = try? decoder.decode(BareStatus.self, from: payload) {
+            throw APIError.server(status.statusMessage ?? "That attachment was not found.", reason: status.reason)
+        }
+        return payload
+    }
+
+    /// Removes an attachment. Either person on the list may remove either
+    /// person's file. Gone from every response at once; the bytes follow when
+    /// the server's purge runs.
+    func deleteMedia(id: String) async throws(APIError) -> Bool {
+        try await performVoid("DELETE", "/api/v1/media/\(id)")
+    }
+
+    // MARK: Transfer plumbing
+
+    /// A request that is not a JSON round trip: a multipart upload, or a
+    /// download whose success body is raw bytes.
+    ///
+    /// Gets the same token handling as `perform` — a proactive refresh, the
+    /// bearer header, and one refresh-and-retry on an unauthorised answer —
+    /// over the long-timeout session.
+    private func authorizedTransfer(
+        _ path: String,
+        allowRetry: Bool = true,
+        make: () -> URLRequest
+    ) async throws(APIError) -> (Data, URLResponse) {
+        if injectedToken == nil, await TokenStore.shared.accessTokenNeedsRefresh() {
+            _ = await refreshIfPossible()
+        }
+
+        var request = make()
+        let token: String?
+        if let injectedToken {
+            token = injectedToken
+        } else {
+            token = await TokenStore.shared.accessToken
+        }
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await transferSession.data(for: request)
+        } catch let error as URLError {
+            logger.warning("\(request.httpMethod ?? "?") \(path) — transfer failed: \(error.code.rawValue)")
+            throw error.code == .cancelled ? APIError.unknown : APIError.offline
+        } catch {
+            throw APIError.unknown
+        }
+
+        if Self.isJSON(response),
+           let status = try? decoder.decode(BareStatus.self, from: data),
+           status.statusCode == 401 || status.statusCode == 403 {
+            // A 403 here can also be NOT_A_MEMBER, which a refresh will not
+            // fix; only a 401 — or a 403 with no reason — is worth retrying.
+            let isTokenProblem = status.statusCode == 401 || status.reason == nil
+            if isTokenProblem {
+                guard allowRetry, injectedToken == nil, await refreshIfPossible() else {
+                    await MainActor.run { Self.onSessionExpired?() }
+                    throw APIError.unauthorized
+                }
+                return try await authorizedTransfer(path, allowRetry: false, make: make)
+            }
+        }
+        return (data, response)
+    }
+
+    private static func isJSON(_ response: URLResponse) -> Bool {
+        (response.mimeType ?? "").localizedCaseInsensitiveContains("json")
+    }
+
+    private static func multipartBody(
+        boundary: String,
+        field: String,
+        fileName: String,
+        mimeType: String,
+        data: Data
+    ) -> Data {
+        // Quotes and line breaks would end the header early; the server
+        // sanitises the name anyway, so dropping them loses nothing.
+        let safeName = fileName
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+        var body = Data()
+        body.append(Data("--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"\(field)\"; filename=\"\(safeName)\"\r\n".utf8))
+        body.append(Data("Content-Type: \(mimeType)\r\n\r\n".utf8))
+        body.append(data)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        return body
     }
 }
 

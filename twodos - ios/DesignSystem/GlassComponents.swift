@@ -68,7 +68,7 @@ struct GlassSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let title {
-                Text(title)
+                Text(localizable: title)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textCase(nil)
@@ -79,7 +79,7 @@ struct GlassSection<Content: View>: View {
                 VStack(spacing: 0) { content }
             }
             if let footer {
-                Text(footer)
+                Text(localizable: footer)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 20)
@@ -121,11 +121,11 @@ struct GlassRow<Trailing: View>: View {
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(localizable: title)
                     .font(.body)
                     .foregroundStyle(role == .destructive ? Brand.danger : .primary)
                 if let subtitle {
-                    Text(subtitle)
+                    Text(localizable: subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -258,7 +258,7 @@ struct MetaChip: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 10, weight: .semibold))
-            Text(text)
+            Text(localizable: text)
                 .font(.caption2.weight(emphasised ? .semibold : .regular))
                 .lineLimit(1)
         }
@@ -372,26 +372,7 @@ struct EmptyStateView: View {
 /// "turn on notifications" nudge. Deliberately not an alert: an alert stops the
 /// user, and neither of those cases is worth stopping for.
 struct InlineBanner: View {
-    enum Kind { case info, warning, error, success
-
-        var icon: String {
-            switch self {
-            case .info: "info.circle.fill"
-            case .warning: "exclamationmark.triangle.fill"
-            case .error: "exclamationmark.circle.fill"
-            case .success: "checkmark.circle.fill"
-            }
-        }
-
-        var tint: Color {
-            switch self {
-            case .info: Brand.info
-            case .warning: Brand.warning
-            case .error: Brand.danger
-            case .success: Brand.success
-            }
-        }
-    }
+    typealias Kind = AppStore.BannerMessage.Kind
 
     var kind: Kind
     var title: String
@@ -408,15 +389,15 @@ struct InlineBanner: View {
                     .foregroundStyle(kind.tint)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.subheadline.weight(.semibold))
+                    Text(localizable: title).font(.subheadline.weight(.semibold))
                     if let message {
-                        Text(message)
+                        Text(localizable: message)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let actionTitle, let action {
-                        Button(actionTitle, action: action)
+                        Button(action: action) { Text(localizable: actionTitle) }
                             .font(.caption.weight(.semibold))
                             .buttonStyle(.plain)
                             .foregroundStyle(kind.tint)

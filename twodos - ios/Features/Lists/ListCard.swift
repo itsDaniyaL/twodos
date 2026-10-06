@@ -190,22 +190,23 @@ struct ListCard: View {
                 )
             }
 
-            if !isPersonal {
+            if let counterpart {
                 // Their face, when they have one, is what tells your Groceries
                 // from theirs at a glance — faster than reading the name in
-                // the chip. Initials otherwise, so the chip never loses its
-                // mark; a pending invite keeps the clock, since there is no
-                // person to show yet.
+                // the chip. Anything other than an accepted partner keeps its
+                // state's icon instead, because "this is not settled yet" is
+                // the more useful thing to see.
                 HStack(spacing: 4) {
-                    if list.isPendingInvite || partner == nil {
-                        MetaChip(
-                            icon: list.isPendingInvite ? "clock.badge.questionmark" : "person.2.fill",
-                            text: partnerLabel,
-                            tint: list.isPendingInvite ? Brand.warning : .secondary
-                        )
-                    } else if let partner {
-                        AvatarView(initials: partner.initials, imageURL: partner.avatarURL, size: 18)
+                    if counterpart.state == .accepted, let person = counterpart.partner {
+                        AvatarView(initials: person.initials, imageURL: person.avatarURL, size: 18)
                         MetaChip(icon: "person.2.fill", text: partnerLabel, tint: .secondary)
+                    } else {
+                        MetaChip(
+                            icon: counterpart.icon,
+                            text: partnerLabel,
+                            tint: counterpart.state == .accepted ? .secondary
+                                : counterpart.isPending ? Brand.warning : Brand.danger
+                        )
                     }
                 }
             }
@@ -215,11 +216,17 @@ struct ListCard: View {
         .lineLimit(1)
     }
 
+    private var counterpart: ListCounterpart? { store.counterpart(for: list) }
+
+    /// Said in full for every state — "Waiting for @sam to accept", "Sam
+    /// declined the invite" — rather than a bare name that leaves you to work
+    /// out whether they are actually on the list.
     private var partnerLabel: String {
-        let who = partner?.displayName ?? partner?.email
-        if list.isPendingInvite { return who.map { "Waiting · \($0)" } ?? "Invite pending" }
-        if store.isPartnerOnline(list.partnerId) { return who.map { "\($0) · online" } ?? "Shared" }
-        return who ?? "Shared"
+        guard let counterpart else { return "" }
+        if counterpart.state == .accepted, store.isPartnerOnline(counterpart.partner?.id) {
+            return "\(counterpart.statusText) · online"
+        }
+        return counterpart.statusText
     }
 
     // MARK: - Context menu
@@ -303,7 +310,7 @@ struct ListCard: View {
         if let deadline = list.doBefore { parts.append("Due \(Format.deadline(deadline))") }
         if let priority = list.priority { parts.append("\(priority.title) priority") }
         if list.hasLocation { parts.append("Has a location reminder") }
-        if !isPersonal { parts.append(partnerLabel) }
+        if counterpart != nil { parts.append(partnerLabel) }
         return parts.joined(separator: ", ")
     }
 }
@@ -329,7 +336,7 @@ struct InviteCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(list.label).font(.headline)
                         Text(fromName.map { "\($0) wants to share this with you" }
-                             ?? "Someone wants to share this with you")
+                             ?? "You've been invited to share this list")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

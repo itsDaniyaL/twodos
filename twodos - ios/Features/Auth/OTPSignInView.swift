@@ -16,10 +16,15 @@ struct OTPSignInView: View {
     @State private var isSending = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    /// Request the code as soon as the screen appears, for the sign-in screen's
+    /// "Sign in with a code", which already has the address.
+    private let sendOnAppear: Bool
+    @State private var didAutoSend = false
 
-    init(path: Binding<NavigationPath>, prefilledEmail: String?) {
+    init(path: Binding<NavigationPath>, prefilledEmail: String?, sendOnAppear: Bool = false) {
         _path = path
         _email = State(initialValue: prefilledEmail ?? TokenStore.shared.lastSignedInEmail ?? "")
+        self.sendOnAppear = sendOnAppear
     }
 
     var body: some View {
@@ -67,6 +72,13 @@ struct OTPSignInView: View {
         }
         .navigationTitle("One-time code")
         .motion(Motion.content, value: codeSent)
+        .task {
+            // Once per appearance of the screen, not on every return to it —
+            // a second automatic send would invalidate the code just typed.
+            guard sendOnAppear, !didAutoSend else { return }
+            didAutoSend = true
+            await sendCode()
+        }
     }
 
     private func sendCode() async {

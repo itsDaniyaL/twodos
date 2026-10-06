@@ -15,6 +15,12 @@
 	<key>com.apple.security.network.client</key>
 	<true/>
 
+	<!-- Attachments. Read-only access to exactly the files the person picks in
+	     the open panel; without it the sandbox hands back a URL that cannot be
+	     read, and every "Add File…" would fail silently. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+
 	<!-- Place reminders. A laptop genuinely moves between home and the office,
 	     which is why location survived the cut to macOS. -->
 	<key>com.apple.security.personal-information.location</key>

@@ -1,0 +1,100 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "Bundle display name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "twodos"
+          }
+        }
+      }
+    },
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "macos"
+          }
+        }
+      }
+    },
+    "NSHumanReadableCopyright" : {
+      "comment" : "Copyright (human-readable)",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : ""
+          }
+        }
+      }
+    },
+    "NSLocationUsageDescription" : {
+      "comment" : "Privacy - Location Usage Description",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos überwacht die Orte, die du einer Liste zuordnest, damit dich eine Erinnerung beim Ankommen oder Gehen erreicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos watches for the places you pin to a list so a reminder can find you when you arrive or leave."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos houdt de plekken bij die je aan een lijst koppelt, zodat een herinnering je vindt als je aankomt of vertrekt."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos отслеживает места, привязанные к спискам, чтобы напоминание нашло тебя, когда ты придёшь или уйдёшь."
+          }
+        }
+      }
+    },
+    "NSLocationWhenInUseUsageDescription" : {
+      "comment" : "Privacy - Location When In Use Usage Description",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos nutzt deinen Standort, um einer Liste einen Ort zuzuordnen, damit dich eine Erinnerung beim Ankommen oder Gehen erreicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos uses your location to pin a place to a list, so a reminder can find you when you arrive or leave."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos gebruikt je locatie om een plek aan een lijst te koppelen, zodat een herinnering je vindt als je aankomt of vertrekt."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos использует геопозицию, чтобы привязать место к списку — тогда напоминание найдёт тебя, когда ты придёшь или уйдёшь."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

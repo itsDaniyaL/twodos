@@ -61,6 +61,15 @@ final class AppStore {
 
     private(set) var lists: [TodoList] = []
     private(set) var partners: [Partner] = []
+    /// The server's own tally of `partners`, from the same response. Nil until
+    /// the directory has loaded, or when only the legacy endpoint answered.
+    private(set) var partnerCounts: PartnerCounts?
+    /// Invitations this user sent that are still unanswered — who each one is
+    /// waiting on, and when it lapses.
+    private(set) var sentInvites: [SentInvite] = []
+    /// People who appear on a list or a task but not in the directory, looked
+    /// up one by one so no list ever has to name "someone".
+    private(set) var extraPeople: [String: Partner] = [:]
     private(set) var alarms: [Alarm] = []
     private(set) var notificationFeed: [AppNotification] = []
     private(set) var blockedUserIds: Set<String> = []
@@ -93,6 +102,9 @@ final class AppStore {
     /// listId → set of partner ids currently typing
     private(set) var typing: [String: Set<String>] = [:]
     private var typingTimers: [String: Task<Void, Never>] = [:]
+
+    /// Attachment bytes already fetched this session, by media id.
+    @ObservationIgnored private var mediaCache: [String: Data] = [:]
 
     // MARK: - Navigation intents
 
@@ -224,9 +236,33 @@ final class AppStore {
 
     struct BannerMessage: Identifiable, Equatable {
         let id = UUID()
-        var kind: InlineBanner.Kind
+        var kind: Kind
         var title: String
         var message: String?
+
+        /// Owned here rather than by a view so both apps can read it: the iOS
+        /// `InlineBanner` and the Mac `MacBanner` each alias it as their `Kind`.
+        enum Kind {
+            case info, warning, error, success
+
+            var icon: String {
+                switch self {
+                case .info: "info.circle.fill"
+                case .warning: "exclamationmark.triangle.fill"
+                case .error: "exclamationmark.circle.fill"
+                case .success: "checkmark.circle.fill"
+                }
+            }
+
+            var tint: Color {
+                switch self {
+                case .info: Brand.info
+                case .warning: Brand.warning
+                case .error: Brand.danger
+                case .success: Brand.success
+                }
+            }
+        }
     }
 
     // MARK: - Preferences
@@ -567,6 +603,10 @@ final class AppStore {
         user = nil
         lists = []
         partners = []
+        partnerCounts = nil
+        sentInvites = []
+        extraPeople = [:]
+        mediaCache = [:]
         alarms = []
         notificationFeed = []
         blockedUserIds = []
@@ -591,7 +631,9 @@ final class AppStore {
         async let listsResult: Void = refreshLists()
         async let partnersResult: Void = refreshPartners()
         async let feedResult: Void = refreshNotifications()
-        _ = await (listsResult, partnersResult, feedResult)
+        async let sentResult: Void = refreshSentInvites()
+        _ = await (listsResult, partnersResult, feedResult, sentResult)
+        await resolveUnknownPeople()
     }
 
     func refreshLists() async {
@@ -637,7 +679,20 @@ final class AppStore {
 
     func refreshPartners() async {
         do {
-            partners = try await api.partners()
+            // The directory first: it is the only source that includes
+            // declined and blocked people, and its counts are taken from the
+            // same array, so a counter can never disagree with the screen.
+            do {
+                let directory = try await api.partnerDirectory()
+                partners = directory.partners
+                partnerCounts = directory.counts
+            } catch APIError.unauthorized {
+                throw APIError.unauthorized
+            } catch {
+                // A server older than the directory still has the original.
+                partners = try await api.partners()
+                partnerCounts = nil
+            }
             // Names are resolved on this side before being sent, so the watch
             // and the widgets show "Sam" rather than a partner id. Both run
             // concurrently with `refreshLists`, which means the lists usually
@@ -647,6 +702,40 @@ final class AppStore {
             syncExternalSurfaces()
         } catch {
             logger.debug("refreshPartners failed: \(error.localizedDescription)")
+        }
+    }
+
+    func refreshSentInvites() async {
+        do {
+            sentInvites = try await api.sentInvites()
+        } catch {
+            logger.debug("refreshSentInvites failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Looks up anybody named on a list or a task who is not in the directory.
+    ///
+    /// The directory covers every relationship the server can see from the
+    /// caller's side, so this is normally a no-op. It exists for the gaps —
+    /// a list that arrived over the socket before the next directory refresh,
+    /// say — because the alternative is a card that says "someone".
+    private func resolveUnknownPeople() async {
+        guard let me = currentUserId else { return }
+        var ids = Set<String>()
+        for list in lists {
+            ids.insert(list.createdBy)
+            if let partnerId = list.partnerId { ids.insert(partnerId) }
+            for todo in list.todos { if let assignee = todo.assigneeId { ids.insert(assignee) } }
+        }
+        ids.remove(me)
+        ids.remove("")
+        let known = Set(partners.map(\.id)).union(extraPeople.keys)
+        // Bounded so a pathological account cannot turn one refresh into a
+        // hundred requests; the rest resolve on the next pass.
+        for id in ids.subtracting(known).prefix(20) {
+            if let person = try? await api.account(id: id) {
+                extraPeople[id] = person
+            }
         }
     }
 
@@ -727,7 +816,70 @@ final class AppStore {
 
     func partner(id: String?) -> Partner? {
         guard let id else { return nil }
-        return partners.first { $0.id == id }
+        return partners.first { $0.id == id } ?? extraPeople[id]
+    }
+
+    /// Lists this user shared that the other person has not answered yet.
+    ///
+    /// Still in `activeLists` — they are the creator's to use from the start —
+    /// but the home screen gathers them under "Pending invites" at the bottom
+    /// so it is clear which lists nobody has joined.
+    var awaitingPartnerLists: [TodoList] {
+        lists
+            .filter { !$0.archived && $0.isPendingInvite && $0.createdBy == currentUserId }
+            .sorted(by: sortComparator)
+    }
+
+    func sentInvite(forList listId: String) -> SentInvite? {
+        sentInvites.first { $0.listId == listId }
+    }
+
+    /// Partners you actually share with: accepted, and not blocked either way.
+    var acceptedPartners: [Partner] {
+        partners.filter { $0.isAccepted && !$0.isInBlock && !isBlocked($0.id) }
+    }
+
+    /// Who is on the other end of a list, and where that relationship stands.
+    ///
+    /// The one place that answers it, so the card, the detail screen and the
+    /// info sheet can never describe the same list three different ways. Nil
+    /// for a personal list.
+    func counterpart(for list: TodoList) -> ListCounterpart? {
+        guard !list.isEffectivelyPersonal(currentUserId: currentUserId) else { return nil }
+        let otherId = list.createdBy == currentUserId ? list.partnerId : list.createdBy
+        let person = partner(id: otherId)
+        let invite = sentInvite(forList: list.id)
+
+        let state: ListCounterpart.State
+        if person?.blocked == true || otherId.map(isBlocked) == true {
+            state = .youBlocked
+        } else if person?.blockedByThem == true {
+            state = .blockedYou
+        } else if list.inviteStatus == APIConstants.InviteStatus.rejected {
+            state = .declined
+        } else if list.isPendingInvite {
+            state = list.createdBy == currentUserId ? .awaitingThem : .awaitingYou
+        } else {
+            state = .accepted
+        }
+
+        return ListCounterpart(
+            partner: person,
+            name: person?.identityLabel ?? invite?.invitee.identityLabel,
+            state: state,
+            inviteeHasAccount: invite?.invitee.hasAccount
+        )
+    }
+
+    /// The person who has taken on a task, as it should read under the title.
+    /// Nil when nobody has.
+    func assigneeLabel(for todo: Todo) -> String? {
+        guard let assigneeId = todo.assigneeId else { return nil }
+        if assigneeId == currentUserId { return String(localized: "You're doing this") }
+        if let person = partner(id: assigneeId) {
+            return String(localized: "\(person.identityLabel) is doing this")
+        }
+        return String(localized: "Your partner is doing this")
     }
 
     /// Overdue lists always float to the top regardless of the chosen sort —
@@ -901,9 +1053,19 @@ final class AppStore {
     // MARK: - Todo mutations
 
     /// `notes` is the optional detail behind the title; most adds have none.
-    func addTodo(listId: String, title: String, notes: String? = nil) async {
+    ///
+    /// `attachments` go up once the task exists. The create endpoint answers
+    /// only `true`, so the new task is found by comparing the list before and
+    /// after the refresh — the one id that was not there before.
+    func addTodo(
+        listId: String,
+        title: String,
+        notes: String? = nil,
+        attachments: [AttachmentDraft] = []
+    ) async {
         guard let index = lists.firstIndex(where: { $0.id == listId }) else { return }
         let notes = Todo.normalisedNotes(notes)
+        let existingIds = Set(lists[index].todos.map(\.id))
 
         // Insert a placeholder so the row appears instantly; the refresh below
         // swaps it for the server's version with a real id.
@@ -920,6 +1082,10 @@ final class AppStore {
         do {
             _ = try await api.createTodo(listId: listId, title: title, notes: notes)
             await refreshList(id: listId)
+            if !attachments.isEmpty {
+                await attachToNewTodo(listId: listId, title: title, existingIds: existingIds,
+                                      attachments: attachments)
+            }
         } catch {
             // Offline keeps the row and queues the write; anything else is a
             // real rejection and the row goes.
@@ -927,11 +1093,101 @@ final class AppStore {
                 listId: listId, localId: placeholder.id, title: title, notes: notes
             )) else {
                 syncExternalSurfaces()
+                if !attachments.isEmpty {
+                    // The task is queued; files are not. Say so rather than
+                    // let them vanish without a word.
+                    banner = BannerMessage(
+                        kind: .warning,
+                        title: "Attachments not added",
+                        message: "“\(title)” will be saved when you're back online. Add its files again then."
+                    )
+                }
                 return
             }
             lists[index].todos.removeAll { $0.id == placeholder.id }
             report(error, whileDoing: "adding the item")
         }
+    }
+
+    private func attachToNewTodo(
+        listId: String,
+        title: String,
+        existingIds: Set<String>,
+        attachments: [AttachmentDraft]
+    ) async {
+        guard let created = list(id: listId)?.todos.last(where: {
+            !existingIds.contains($0.id) && !$0.id.hasPrefix("pending-") && $0.title == title
+        }) else {
+            banner = BannerMessage(kind: .warning, title: "Attachments not added",
+                                   message: "“\(title)” was added, but its files could not be. Open it to try again.")
+            return
+        }
+        for draft in attachments {
+            do {
+                try await attachMedia(listId: listId, todoId: created.id, draft: draft)
+            } catch {
+                report(error, whileDoing: "attaching “\(draft.fileName)”")
+            }
+        }
+    }
+
+    // MARK: - Attachments
+
+    /// Uploads one file to a task and shows it as soon as the server has it.
+    ///
+    /// Throws rather than reporting, so the screen that started the upload can
+    /// show the server's own message beside the thing that failed — every
+    /// limit refusal names the limit and what to do about it.
+    func attachMedia(listId: String, todoId: String, draft: AttachmentDraft) async throws(APIError) {
+        let media = try await api.uploadMedia(
+            listId: listId, todoId: todoId,
+            fileName: draft.fileName, mimeType: draft.mimeType, data: draft.data
+        )
+        // Cached at once: the person who attached a photo is about to look at it.
+        mediaCache[media.id] = draft.data
+        if let listIndex = lists.firstIndex(where: { $0.id == listId }),
+           let todoIndex = lists[listIndex].todos.firstIndex(where: { $0.id == todoId }),
+           !lists[listIndex].todos[todoIndex].media.contains(where: { $0.id == media.id }) {
+            lists[listIndex].todos[todoIndex].media.append(media)
+        }
+        Haptics.success()
+        // The refresh brings back the server's own count of what is left.
+        await refreshList(id: listId)
+    }
+
+    /// Removes an attachment for good. Optimistic, like every other edit here:
+    /// it leaves the screen at once and comes back only if the server refuses.
+    func removeMedia(_ media: TodoMedia) async {
+        guard let listIndex = lists.firstIndex(where: { $0.id == media.listId }),
+              let todoIndex = lists[listIndex].todos.firstIndex(where: { $0.id == media.todoId })
+        else { return }
+        let previous = lists[listIndex].todos[todoIndex].media
+        lists[listIndex].todos[todoIndex].media.removeAll { $0.id == media.id }
+        Haptics.light()
+
+        do {
+            _ = try await api.deleteMedia(id: media.id)
+            mediaCache[media.id] = nil
+            await refreshList(id: media.listId)
+        } catch {
+            if let li = lists.firstIndex(where: { $0.id == media.listId }),
+               let ti = lists[li].todos.firstIndex(where: { $0.id == media.todoId }) {
+                lists[li].todos[ti].media = previous
+            }
+            report(error, whileDoing: "removing the attachment")
+        }
+    }
+
+    /// An attachment's bytes, from memory when this session has already
+    /// fetched them. The endpoint is authenticated, so an image view cannot
+    /// simply be pointed at a URL.
+    func mediaData(for media: TodoMedia) async throws(APIError) -> Data {
+        if let cached = mediaCache[media.id] { return cached }
+        let data = try await api.downloadMedia(id: media.id)
+        // Small files only. A handful of thumbnails is worth keeping; a stack
+        // of PDFs is not worth the memory.
+        if data.count <= 2_000_000 { mediaCache[media.id] = data }
+        return data
     }
 
     func setTodo(listId: String, todoId: String, done: Bool) async {
@@ -1417,6 +1673,10 @@ final class AppStore {
 
         do {
             _ = blocked ? try await api.block(userId: userId) : try await api.unblock(userId: userId)
+            // Blocking clears the partner slot on shared lists server-side, so
+            // both the directory and the lists have changed shape.
+            await refreshPartners()
+            await refreshLists()
         } catch {
             blockedUserIds = previous
             report(error, whileDoing: blocked ? "blocking" : "unblocking")

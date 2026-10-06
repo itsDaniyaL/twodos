@@ -41,6 +41,7 @@ struct WelcomeView: View {
                 case .signUp: SignUpView(path: $path)
                 case .verifyEmail(let email): VerifyEmailView(path: $path, email: email)
                 case .otp(let email): OTPSignInView(path: $path, prefilledEmail: email)
+                case .otpCode(let email): OTPSignInView(path: $path, prefilledEmail: email, sendOnAppear: true)
                 case .resetPassword(let email): ResetPasswordView(path: $path, prefilledEmail: email)
                 case .completeInvite(let email): CompleteInviteView(path: $path, prefilledEmail: email)
                 }
@@ -150,6 +151,9 @@ enum AuthRoute: Hashable {
     case signUp
     case verifyEmail(email: String?)
     case otp(email: String?)
+    /// Straight to the code: the address is already known and the code is
+    /// requested on arrival, so the person lands on the boxes to type it into.
+    case otpCode(email: String)
     case resetPassword(email: String?)
     case completeInvite(email: String?)
 }

@@ -115,35 +115,56 @@ struct ListInfoSheet: View {
     }
 
     private func sharing(_ list: TodoList) -> some View {
-        let partner = store.partner(id: list.partnerId)
-        let isPending = list.isPendingInvite
+        let counterpart = store.counterpart(for: list)
+        let person = counterpart?.partner
+        let invite = store.sentInvite(forList: list.id)
+        let isPending = counterpart?.isPending ?? list.isPendingInvite
 
         return GlassSection(title: "Shared with") {
             HStack(spacing: 12) {
                 AvatarView(
-                    initials: partner?.initials ?? "?",
-                    imageURL: partner?.avatarURL,
+                    initials: person?.initials ?? "@",
+                    imageURL: person?.avatarURL,
                     size: 44,
-                    isOnline: isPending ? nil : store.isPartnerOnline(list.partnerId)
+                    isOnline: counterpart?.state == .accepted ? store.isPartnerOnline(person?.id) : nil
                 )
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(partner?.displayName ?? "Invited person")
+                    // Never "someone": the name if the app knows it, otherwise
+                    // the address the invitation went to, otherwise what is
+                    // actually going on.
+                    Text(person?.displayName ?? counterpart?.name ?? counterpart?.statusText ?? "")
                         .font(.body.weight(.medium))
-                    Text(partner?.email ?? "—")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let detail = secondaryLine(person: person, invite: invite) {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer(minLength: 0)
                 MetaChip(
-                    icon: isPending ? "clock" : "checkmark.circle.fill",
-                    text: isPending ? "Pending" : "Accepted",
-                    tint: isPending ? Brand.warning : Brand.success,
+                    icon: counterpart?.icon ?? "checkmark.circle.fill",
+                    text: counterpart?.badge ?? String(localized: "Accepted"),
+                    tint: counterpart?.state == .accepted ? Brand.success
+                        : isPending ? Brand.warning : Brand.danger,
                     emphasised: true
                 )
             }
             .padding(Metrics.cardPadding)
 
-            if isPending, let expiry = list.inviteExpiresAt {
+            if let counterpart, counterpart.state != .accepted {
+                GlassDivider()
+                InfoRow(icon: "info.circle", label: "Status", value: counterpart.statusText)
+            }
+
+            if let invite, invite.invitee.hasAccount == false {
+                GlassDivider()
+                InfoRow(icon: "person.crop.circle.badge.plus", label: "Account",
+                        value: String(localized: "Not on twodos yet"))
+            }
+
+            // Only an invitation to an address with no account ever expires;
+            // one to an existing user waits indefinitely, so no countdown.
+            if isPending, let expiry = invite?.expiresAt ?? list.inviteExpiresAt {
                 GlassDivider()
                 InfoRow(
                     icon: "hourglass",
@@ -155,6 +176,17 @@ struct ListInfoSheet: View {
                 )
             }
         }
+    }
+
+    /// The handle or address under the name, whichever is not already the
+    /// headline.
+    private func secondaryLine(person: Partner?, invite: SentInvite?) -> String? {
+        if let person {
+            if let handle = person.handle, person.displayName != handle { return handle }
+            if !person.email.isEmpty, person.displayName != person.email { return person.email }
+            return nil
+        }
+        return invite?.invitee.email
     }
 }
 
@@ -172,7 +204,7 @@ struct InfoRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
                 .accessibilityHidden(true)
-            Text(label)
+            Text(localizable: label)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 12)

@@ -13,25 +13,30 @@ enum MacAuthRoute: String, Identifiable {
 
     var title: String {
         switch self {
-        case .signUp: "Create your account"
-        case .otp: "Sign in with a code"
-        case .resetPassword: "Reset your password"
-        case .completeInvite: "Finish setting up"
+        case .signUp: String(localized: "Create your account")
+        case .otp: String(localized: "Sign in with a code")
+        case .resetPassword: String(localized: "Reset your password")
+        case .completeInvite: String(localized: "Finish setting up")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .signUp: "You'll be able to share lists as soon as you're in."
-        case .otp: "We'll email you a code. No password needed."
-        case .resetPassword: "We'll email you a code, then you choose a new password."
-        case .completeInvite: "Somebody shared a list with your address. Choose a password to claim it."
+        case .signUp: String(localized: "You'll be able to share lists as soon as you're in.")
+        case .otp: String(localized: "We'll email you a code. No password needed.")
+        case .resetPassword: String(localized: "We'll email you a code, then you choose a new password.")
+        case .completeInvite: String(localized: "Somebody shared a list with your address. Choose a password to claim it.")
         }
     }
 }
 
 struct MacAuthSheet: View {
     let route: MacAuthRoute
+    /// The address already typed on the sign-in screen, if any.
+    var prefilledEmail: String?
+    /// Request the code on arrival — for "Sign in with a Code", where the
+    /// address is already known and the next thing to do is type the code.
+    var sendOnAppear = false
 
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -156,14 +161,18 @@ struct MacAuthSheet: View {
         .padding(24)
         .frame(width: 420)
         .frame(minHeight: route == .completeInvite ? 560 : 420)
+        .task {
+            if let prefilledEmail, email.isEmpty { email = prefilledEmail }
+            if sendOnAppear, !codeSent, route != .signUp { await sendCode() }
+        }
     }
 
     private var primaryTitle: String {
         switch route {
-        case .signUp: "Create account"
-        case .otp: "Sign in"
-        case .resetPassword: "Set new password"
-        case .completeInvite: "Claim my account"
+        case .signUp: String(localized: "Create account")
+        case .otp: String(localized: "Sign in")
+        case .resetPassword: String(localized: "Set new password")
+        case .completeInvite: String(localized: "Claim my account")
         }
     }
 

@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// Who should have a task, as picked from the row's menu.
+enum AssigneeChoice {
+    /// "I'll do it."
+    case me
+    /// "You do it" — hand it to the other person on the list.
+    case partner
+    /// Unclaim it.
+    case nobody
+}
+
 /// One item in a list.
 ///
 /// The whole row is the checkbox target, which is what people actually aim for.
@@ -17,13 +27,20 @@ struct TodoRow: View {
     /// Pin this one item to a place. The API has always supported it; nothing
     /// reached it until now.
     let onSetLocation: () -> Void
-    /// Cycles who has this task. Nil when the list is not shared — there is
-    /// nobody to share it with.
-    var onToggleAssignee: (() -> Void)?
-    /// Initials of whoever has taken this on, already resolved. Nil = unclaimed.
-    var assigneeInitials: String?
+    /// Sets who has this task. Nil when the list is not shared — there is
+    /// nobody to hand it to.
+    var onAssign: ((AssigneeChoice) -> Void)?
+    /// The line under the title naming who is doing it — "You're doing this",
+    /// "@sam_k is doing this". Nil when nobody has claimed it.
+    var assigneeLabel: String?
     /// Whether the assignee is the person looking at the screen.
     var assignedToMe: Bool = false
+    /// Whether the other person on the list has it.
+    var assignedToPartner: Bool = false
+    /// How the other person is named in "You do it", already resolved.
+    var partnerName: String?
+    /// Opens the task's attachments. Nil when the list does not take any.
+    var onAttachments: (() -> Void)?
     /// Ticking this one scores a point in the list's running challenge.
     var isInChallenge: Bool = false
     let onDelete: () -> Void
@@ -105,10 +122,33 @@ struct TodoRow: View {
                 Label(todo.hasLocation ? "Change the place" : "Remind me at a place",
                       systemImage: "mappin.and.ellipse")
             }
-            if let onToggleAssignee {
-                Button(action: onToggleAssignee) {
-                    Label(assigneeInitials == nil ? "I'll do this" : "Change who has it",
-                          systemImage: "person.crop.circle.badge.checkmark")
+            if let onAttachments {
+                Button(action: onAttachments) {
+                    Label(todo.hasMedia ? "Attachments" : "Attach a file", systemImage: "paperclip")
+                }
+            }
+            // Spelled out rather than cycled: a tap that silently hands your
+            // task to the other person is not something to discover by accident.
+            if let onAssign {
+                Menu {
+                    Button { onAssign(.me) } label: {
+                        Label("I'll do it", systemImage: assignedToMe ? "checkmark" : "hand.raised")
+                    }
+                    Button { onAssign(.partner) } label: {
+                        Label {
+                            Text("You do it")
+                            if let partnerName { Text("Hand it to \(partnerName)") }
+                        } icon: {
+                            Image(systemName: assignedToPartner ? "checkmark" : "arrow.right.circle")
+                        }
+                    }
+                    if todo.assigneeId != nil {
+                        Button { onAssign(.nobody) } label: {
+                            Label("Nobody yet", systemImage: "person.crop.circle.badge.questionmark")
+                        }
+                    }
+                } label: {
+                    Label("Who's doing this?", systemImage: "person.crop.circle.badge.checkmark")
                 }
             }
             Divider()
@@ -125,6 +165,11 @@ struct TodoRow: View {
             Button("Edit", action: onEdit)
             Button(todo.hasNotes ? "Edit notes" : "Add notes", action: onEditNotes)
             Button("Set a reminder", action: onSetDeadline)
+            if let onAssign {
+                Button("I'll do it") { onAssign(.me) }
+                Button("You do it") { onAssign(.partner) }
+            }
+            if let onAttachments { Button("Attachments", action: onAttachments) }
             Button("Delete", action: onDelete)
         }
     }
@@ -183,15 +228,27 @@ struct TodoRow: View {
                     .foregroundStyle(Brand.danger)
             }
 
-            if let initials = assigneeInitials {
-                // "Mine" reads faster than your own initials, which you have to
-                // decode against your own name before it means anything.
+            // A sentence, not initials or a face: two people without a
+            // picture had no way to tell from the old mark which of them it
+            // meant. The handle comes first because it is the one thing two
+            // people on a list cannot share.
+            if let assigneeLabel {
+                Label(assigneeLabel, systemImage: assignedToMe ? "person.fill.checkmark" : "person.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(todo.done ? AnyShapeStyle(HierarchicalShapeStyle.tertiary)
+                                     : assignedToMe ? AnyShapeStyle(Brand.meadow) : AnyShapeStyle(Brand.info))
+                    .lineLimit(1)
+            }
+
+            if todo.hasMedia {
                 Label(
-                    assignedToMe ? "Mine" : initials,
-                    systemImage: assignedToMe ? "person.fill" : "person"
+                    todo.media.count == 1
+                        ? String(localized: "1 attachment")
+                        : String(localized: "\(todo.media.count) attachments"),
+                    systemImage: "paperclip"
                 )
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(assignedToMe ? Brand.meadow : .secondary)
+                .font(.caption2)
+                .foregroundStyle(todo.done ? .tertiary : .secondary)
                 .lineLimit(1)
             }
 
@@ -227,9 +284,8 @@ struct TodoRow: View {
             parts.append("reminder when you \(todo.trigger.shortTitle.lowercased()) at "
                          + (todo.locationName ?? "a saved place"))
         }
-        if let initials = assigneeInitials {
-            parts.append(assignedToMe ? "yours" : "with \(initials)")
-        }
+        if let assigneeLabel { parts.append(assigneeLabel) }
+        if todo.hasMedia { parts.append("\(todo.media.count) attachments") }
         if let due = todo.doBefore {
             parts.append(todo.done ? "was due \(Format.deadline(due))" : "due \(Format.deadline(due))")
         }
@@ -247,7 +303,7 @@ struct TodoRow: View {
 /// the title endpoint and the notes to theirs — so an edit here can never
 /// overwrite a change the partner made to the other field in the meantime.
 struct EditTodoSheet: View {
-    enum Field { case title, notes }
+    enum Field { case title, notes, attachments }
 
     let listId: String
     let todo: Todo
@@ -268,6 +324,7 @@ struct EditTodoSheet: View {
         self.initialFocus = initialFocus
         _text = State(initialValue: todo.title)
         _notes = State(initialValue: todo.notes ?? "")
+        _detent = State(initialValue: initialFocus == .attachments ? .large : .medium)
     }
 
     private var trimmedTitle: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -316,6 +373,12 @@ struct EditTodoSheet: View {
                                 .foregroundStyle(Brand.danger)
                                 .padding(.horizontal, 4)
                         }
+
+                        // Saved as they go rather than with the Save button:
+                        // an upload is its own round trip, and holding a photo
+                        // hostage to a title edit would lose it on Cancel.
+                        AttachmentsSection(listId: listId, todoId: todo.id)
+                            .padding(.top, 8)
                     }
                     .padding(.horizontal, Metrics.gutter)
                     .padding(.top, 12)
@@ -337,11 +400,15 @@ struct EditTodoSheet: View {
                         .fontWeight(.semibold)
                 }
             }
-            .onAppear { focus = initialFocus }
+            // The attachments section is not a text field; arriving there
+            // means no keyboard, so the files are not hidden behind one.
+            .onAppear { focus = initialFocus == .attachments ? nil : initialFocus }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
     }
+
+    @State private var detent: PresentationDetent = .medium
 
     private func save() {
         let title = trimmedTitle

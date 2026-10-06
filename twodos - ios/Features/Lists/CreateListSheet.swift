@@ -201,7 +201,7 @@ struct CreateListSheet: View {
                 .glassEffect(.regular, in: .rect(cornerRadius: 12))
                 .accessibilityLabel("Their email address or username")
 
-            if !store.partners.isEmpty {
+            if !suggestedPartners.isEmpty {
                 recentPartners
             }
 
@@ -232,12 +232,20 @@ struct CreateListSheet: View {
         }
     }
 
+    /// Anyone who can actually be invited — not blocked either way, and with
+    /// a way to reach them — with the people you already share with first.
+    private var suggestedPartners: [Partner] {
+        store.partners
+            .filter { !$0.isInBlock && !store.isBlocked($0.id) && !$0.shareReference.isEmpty }
+            .sorted { $0.isAccepted && !$1.isAccepted }
+    }
+
     /// One-tap reuse of people already shared with — most sharing is with the
     /// same one or two people, so making them tappable removes a lot of typing.
     private var recentPartners: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                ForEach(store.partners.filter { !store.isBlocked($0.id) }) { partner in
+                ForEach(suggestedPartners) { partner in
                     Button {
                         // Their handle when they have one — shorter, and it
                         // survives them changing the address on their account.

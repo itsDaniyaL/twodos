@@ -116,17 +116,47 @@ struct Partner: Decodable, Identifiable, Equatable, Hashable, Sendable {
     /// better thing to reuse when sharing another list with them.
     var username: String?
 
-    enum CodingKeys: String, CodingKey { case id, name, email, emailVerified, status, avatarUrl, username }
+    // MARK: Partner directory
+    //
+    // Only `GET /api/v1/account/partner-directory` sends these. The older
+    // `/api/account/partners` omits them, and the defaults below describe what
+    // that endpoint implies: nobody blocked, and nothing known about lists.
+
+    /// You have blocked them.
+    var blocked: Bool = false
+    /// They have blocked you. `email` and `avatarUrl` arrive redacted when set.
+    var blockedByThem: Bool = false
+    /// At least one shared list has an *accepted* invite — "do we actually
+    /// share anything". Not the same as `listCount > 0`.
+    var hasLists: Bool = false
+    /// Every list you are both on, at any invite status.
+    var listCount: Int = 0
+    var acceptedListCount: Int = 0
+    var pendingListCount: Int = 0
+    var lastActivityAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, email, emailVerified, status, avatarUrl, username
+        case blocked, blockedByThem, hasLists, listCount, acceptedListCount, pendingListCount, lastActivityAt
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
         name = try c.decodeIfPresent(String.self, forKey: .name)
+        // Null when they have blocked you — redacted, not missing.
         email = try c.decodeIfPresent(String.self, forKey: .email) ?? ""
         emailVerified = try c.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? false
         status = try c.decodeIfPresent(String.self, forKey: .status)
         avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
         username = try c.decodeIfPresent(String.self, forKey: .username)
+        blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
+        blockedByThem = try c.decodeIfPresent(Bool.self, forKey: .blockedByThem) ?? false
+        hasLists = try c.decodeIfPresent(Bool.self, forKey: .hasLists) ?? false
+        listCount = try c.decodeIfPresent(Int.self, forKey: .listCount) ?? 0
+        acceptedListCount = try c.decodeIfPresent(Int.self, forKey: .acceptedListCount) ?? 0
+        pendingListCount = try c.decodeIfPresent(Int.self, forKey: .pendingListCount) ?? 0
+        lastActivityAt = try c.decodeIfPresent(Date.self, forKey: .lastActivityAt)
     }
 
     init(id: String, name: String?, email: String, emailVerified: Bool = false, status: String? = nil,
@@ -155,7 +185,24 @@ struct Partner: Decodable, Identifiable, Equatable, Hashable, Sendable {
     /// not. Falls back to the address, which every account has.
     var shareReference: String { handle ?? email }
 
-    var displayName: String { name?.isEmpty == false ? name! : email }
+    var displayName: String {
+        if let name, !name.isEmpty { return name }
+        if !email.isEmpty { return email }
+        // A partner who blocked you arrives with no address; their handle is
+        // the one identifying thing left.
+        return handle ?? String(localized: "Unknown person")
+    }
+
+    /// Who this is, in the order that tells two people apart best: the handle,
+    /// then the name, then the address. Used wherever the question is "which
+    /// of us is doing this", where a handle is unambiguous and a first name is
+    /// not.
+    var identityLabel: String {
+        if let handle { return handle }
+        if let name, !name.isEmpty { return name }
+        if !email.isEmpty { return email }
+        return String(localized: "Unknown person")
+    }
 
     var initials: String {
         let parts = displayName.split(separator: " ").prefix(2)
@@ -165,6 +212,204 @@ struct Partner: Decodable, Identifiable, Equatable, Hashable, Sendable {
 
     var isAccepted: Bool { status == APIConstants.InviteStatus.accepted }
     var isPending: Bool { status == APIConstants.InviteStatus.pending }
+    var isRejected: Bool { status == APIConstants.InviteStatus.rejected }
+    /// A block in either direction.
+    var isInBlock: Bool { blocked || blockedByThem }
+}
+
+/// `GET /api/v1/account/partner-directory`.
+///
+/// `counts` is computed by the server from the same `partners` array in the
+/// same response, so the two can never disagree — which is the bug the older
+/// endpoint had, where the counter and the screen showed different numbers.
+struct PartnerDirectory: Decodable, Sendable {
+    let counts: PartnerCounts
+    let partners: [Partner]
+}
+
+struct PartnerCounts: Decodable, Equatable, Sendable {
+    var total: Int = 0
+    var accepted: Int = 0
+    var pending: Int = 0
+    var rejected: Int = 0
+    /// Blocked in either direction. Cuts across the status buckets.
+    var blocked: Int = 0
+    /// Has at least one accepted shared list. Cuts across the status buckets.
+    var withLists: Int = 0
+
+    enum CodingKeys: String, CodingKey { case total, accepted, pending, rejected, blocked, withLists }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        total = try c.decodeIfPresent(Int.self, forKey: .total) ?? 0
+        accepted = try c.decodeIfPresent(Int.self, forKey: .accepted) ?? 0
+        pending = try c.decodeIfPresent(Int.self, forKey: .pending) ?? 0
+        rejected = try c.decodeIfPresent(Int.self, forKey: .rejected) ?? 0
+        blocked = try c.decodeIfPresent(Int.self, forKey: .blocked) ?? 0
+        withLists = try c.decodeIfPresent(Int.self, forKey: .withLists) ?? 0
+    }
+}
+
+/// An invitation this user sent that is still unanswered —
+/// `GET /api/v1/account/invites/sent`.
+struct SentInvite: Decodable, Identifiable, Equatable, Sendable {
+    let listId: String
+    let label: String?
+    let invitedAt: Date?
+    let invitee: Invitee
+    /// **Nil whenever the invitee already has an account** — those never
+    /// expire. Never count down from a nil.
+    let expiresAt: Date?
+    let reminderSentAt: Date?
+    var blocked: Bool = false
+    var canResend: Bool = false
+
+    var id: String { listId }
+
+    struct Invitee: Decodable, Equatable, Sendable {
+        let id: String?
+        let name: String?
+        let username: String?
+        let email: String?
+        /// False: nobody has signed up with this address yet, and the
+        /// invitation will expire. True: a real account that has not answered.
+        var hasAccount: Bool = false
+
+        enum CodingKeys: String, CodingKey { case id, name, username, email, hasAccount }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(String.self, forKey: .id)
+            name = try c.decodeIfPresent(String.self, forKey: .name)
+            username = try c.decodeIfPresent(String.self, forKey: .username)
+            email = try c.decodeIfPresent(String.self, forKey: .email)
+            hasAccount = try c.decodeIfPresent(Bool.self, forKey: .hasAccount) ?? false
+        }
+
+        /// Handle, then name, then address — the same order as
+        /// `Partner.identityLabel`.
+        var identityLabel: String? {
+            if let username, !username.isEmpty { return "@\(username)" }
+            if let name, !name.isEmpty { return name }
+            if let email, !email.isEmpty { return email }
+            return nil
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case listId, label, invitedAt, invitee, expiresAt, reminderSentAt, blocked, canResend
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        listId = try c.decode(String.self, forKey: .listId)
+        label = try c.decodeIfPresent(String.self, forKey: .label)
+        invitedAt = try c.decodeIfPresent(Date.self, forKey: .invitedAt)
+        invitee = try c.decode(Invitee.self, forKey: .invitee)
+        expiresAt = try c.decodeIfPresent(Date.self, forKey: .expiresAt)
+        reminderSentAt = try c.decodeIfPresent(Date.self, forKey: .reminderSentAt)
+        blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
+        canResend = try c.decodeIfPresent(Bool.self, forKey: .canResend) ?? false
+    }
+}
+
+// MARK: - Attachments
+
+/// One file attached to a task. `items[].media` on every list payload.
+///
+/// The bytes are behind an **authenticated** endpoint (`url`); there is no
+/// public link. The server sniffs the bytes rather than trusting what the
+/// upload declared, and `kind` comes from the sniffed type.
+struct TodoMedia: Decodable, Identifiable, Equatable, Hashable, Sendable {
+    let id: String
+    let todoId: String
+    let listId: String
+    let uploadedBy: String?
+    let fileName: String
+    let declaredContentType: String?
+    /// What the bytes actually are. Nil when the format was not recognised.
+    let sniffedContentType: String?
+    /// The declared and sniffed types disagree, or the format is unknown.
+    /// Warn before previewing — a "photo.png" whose bytes are markup is the
+    /// case this exists for.
+    let contentTypeMismatch: Bool
+    let sizeBytes: Int
+    let kindValue: String?
+    let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, todoId, listId, uploadedBy, fileName, declaredContentType, sniffedContentType
+        case contentTypeMismatch, sizeBytes, createdAt
+        case kindValue = "kind"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        todoId = try c.decodeIfPresent(String.self, forKey: .todoId) ?? ""
+        listId = try c.decodeIfPresent(String.self, forKey: .listId) ?? ""
+        uploadedBy = try c.decodeIfPresent(String.self, forKey: .uploadedBy)
+        fileName = try c.decodeIfPresent(String.self, forKey: .fileName) ?? "file"
+        declaredContentType = try c.decodeIfPresent(String.self, forKey: .declaredContentType)
+        sniffedContentType = try c.decodeIfPresent(String.self, forKey: .sniffedContentType)
+        contentTypeMismatch = try c.decodeIfPresent(Bool.self, forKey: .contentTypeMismatch) ?? false
+        sizeBytes = try c.decodeIfPresent(Int.self, forKey: .sizeBytes) ?? 0
+        kindValue = try c.decodeIfPresent(String.self, forKey: .kindValue)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+    }
+
+    enum Kind: String, Sendable {
+        case image = "MEDIA::KIND::IMAGE"
+        case audio = "MEDIA::KIND::AUDIO"
+        case video = "MEDIA::KIND::VIDEO"
+        case document = "MEDIA::KIND::DOCUMENT"
+        case other = "MEDIA::KIND::OTHER"
+    }
+
+    var kind: Kind { kindValue.flatMap(Kind.init(rawValue:)) ?? .other }
+
+    /// Only an image whose bytes really are an image is drawn inline.
+    var isPreviewableImage: Bool { kind == .image && !contentTypeMismatch }
+
+    var icon: String {
+        switch kind {
+        case .image: "photo"
+        case .audio: "waveform"
+        case .video: "film"
+        case .document: "doc.richtext"
+        case .other: "doc"
+        }
+    }
+}
+
+/// What is left of each attachment limit on a list. Every limit is adjustable
+/// from the dashboard, so these are read from the payload and never hardcoded.
+struct MediaAllowance: Decodable, Equatable, Hashable, Sendable {
+    var enabled: Bool = true
+    var maxFileBytes: Int = 0
+    var filesPerTask: Int = 0
+    var filesPerList: Int = 0
+    var bytesPerList: Int = 0
+    var remainingOnList: Int = 0
+    var remainingBytesOnList: Int = 0
+
+    enum CodingKeys: String, CodingKey {
+        case enabled, maxFileBytes, filesPerTask, filesPerList, bytesPerList
+        case remainingOnList, remainingBytesOnList
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        maxFileBytes = try c.decodeIfPresent(Int.self, forKey: .maxFileBytes) ?? 0
+        filesPerTask = try c.decodeIfPresent(Int.self, forKey: .filesPerTask) ?? 0
+        filesPerList = try c.decodeIfPresent(Int.self, forKey: .filesPerList) ?? 0
+        bytesPerList = try c.decodeIfPresent(Int.self, forKey: .bytesPerList) ?? 0
+        remainingOnList = try c.decodeIfPresent(Int.self, forKey: .remainingOnList) ?? 0
+        remainingBytesOnList = try c.decodeIfPresent(Int.self, forKey: .remainingBytesOnList) ?? 0
+    }
 }
 
 struct SocialLink: Decodable, Identifiable, Equatable, Sendable {
@@ -266,9 +511,17 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
     /// for every shared list, not a missing value.
     var assigneeId: String?
 
+    /// Files attached to this task, oldest first. Empty for a task without any,
+    /// and for a server too old to send the field.
+    var media: [TodoMedia] = []
+
+    /// How many more files this task may hold, from the server. Nil when the
+    /// server did not say, which is treated as "unknown" rather than "none".
+    var mediaRemaining: Int?
+
     enum CodingKeys: String, CodingKey {
         case id, listId, title, done, order, doBefore, updatedAt, updatedBy, assigneeId
-        case challengeId, completedBy
+        case challengeId, completedBy, media, mediaRemaining
         case notes = "description"
         case locationName, locationLat, locationLng, locationRadius
         case locationTriggerValue = "locationTrigger"
@@ -288,6 +541,10 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
         assigneeId = try c.decodeIfPresent(String.self, forKey: .assigneeId)
         challengeId = try c.decodeIfPresent(String.self, forKey: .challengeId)
         completedBy = try c.decodeIfPresent(String.self, forKey: .completedBy)
+        // Decoded leniently: one malformed attachment must not cost the user
+        // the whole list.
+        media = (try? c.decodeIfPresent([TodoMedia].self, forKey: .media)) ?? []
+        mediaRemaining = try? c.decodeIfPresent(Int.self, forKey: .mediaRemaining)
         locationName = try c.decodeIfPresent(String.self, forKey: .locationName)
         locationLat = try c.decodeIfPresent(Double.self, forKey: .locationLat)
         locationLng = try c.decodeIfPresent(Double.self, forKey: .locationLng)
@@ -326,6 +583,7 @@ struct Todo: Decodable, Identifiable, Equatable, Hashable, Sendable {
     var trigger: GeofenceTrigger { GeofenceTrigger(apiValue: locationTriggerValue) }
 
     var hasNotes: Bool { notes != nil }
+    var hasMedia: Bool { !media.isEmpty }
 
     /// The same collapse the server applies, so a value typed here and one
     /// read back from the API compare equal and an optimistic edit never
@@ -479,9 +737,12 @@ struct TodoList: Decodable, Identifiable, Equatable, Hashable, Sendable {
     var locationLat: Double?
     var locationLng: Double?
     var locationRadius: Double?
+    /// The list's attachment limits and what is left of them. Nil from a server
+    /// that predates attachments, which the UI reads as "attachments off".
+    var mediaAllowance: MediaAllowance?
 
     enum CodingKeys: String, CodingKey {
-        case id, label, favorite, archived, createdBy, partnerId, inviteAccepted
+        case id, label, favorite, archived, createdBy, partnerId, inviteAccepted, mediaAllowance
         case inviteStatus, order, createdAt, updatedAt, inviteExpiresAt
         case locationName, locationLat, locationLng, locationRadius
         case colorHex = "color"
@@ -513,6 +774,7 @@ struct TodoList: Decodable, Identifiable, Equatable, Hashable, Sendable {
         locationLat = try c.decodeIfPresent(Double.self, forKey: .locationLat)
         locationLng = try c.decodeIfPresent(Double.self, forKey: .locationLng)
         locationRadius = try c.decodeIfPresent(Double.self, forKey: .locationRadius)
+        mediaAllowance = try? c.decodeIfPresent(MediaAllowance.self, forKey: .mediaAllowance)
         todos = (try c.decodeIfPresent([Todo].self, forKey: .items) ?? [])
             .sorted { $0.order < $1.order }
     }
@@ -618,7 +880,7 @@ struct Alarm: Decodable, Identifiable, Equatable, Sendable {
     }
 
     var repeatRule: AlarmRepeat { AlarmRepeat(apiValue: repeatValue) }
-    var title: String { label?.isEmpty == false ? label! : "Alarm" }
+    var title: String { label?.isEmpty == false ? label! : String(localized: "Alarm") }
 
     /// The time the alarm will actually ring, accounting for a snooze.
     var effectiveDate: Date {

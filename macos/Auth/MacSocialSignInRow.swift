@@ -14,7 +14,7 @@ import AuthenticationServices
 /// convenience.
 struct MacSocialSignInRow: View {
     @Environment(AppStore.self) private var store
-    private var social: SocialSignInService { .shared }
+    @State private var social = SocialSignInService()
 
     @State private var isAuthenticating = false
     @State private var errorMessage: String?

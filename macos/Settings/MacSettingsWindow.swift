@@ -1,4 +1,6 @@
 import SwiftUI
+import ServiceManagement
+import CoreLocation
 
 /// ⌘, — the preferences window.
 ///
@@ -12,8 +14,12 @@ import SwiftUI
 struct MacSettingsWindow: View {
     var body: some View {
         TabView {
+            MacGeneralSettings()
+                .tabItem { Label("General", systemImage: "gearshape") }
             MacAccountSettings()
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
+            MacSecuritySettings()
+                .tabItem { Label("Security", systemImage: "lock.shield") }
             MacAppearanceSettings()
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
             MacNotificationSettings()
@@ -21,7 +27,100 @@ struct MacSettingsWindow: View {
             MacAboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 560, height: 520)
+    }
+}
+
+// MARK: - General
+
+/// Language and place reminders.
+struct MacGeneralSettings: View {
+    @Environment(LanguageStore.self) private var languages
+    @Environment(LocationService.self) private var location
+
+    @State private var opensAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginItemError: String?
+
+    var body: some View {
+        Form {
+            Section {
+                // A list rather than a pop-up menu, so every language is
+                // visible in its own name without opening anything.
+                Picker("Language", selection: Binding(
+                    get: { languages.language },
+                    set: { languages.select($0) }
+                )) {
+                    ForEach(AppLanguage.allCases) { option in
+                        if let endonym = option.endonym {
+                            Text(verbatim: endonym).tag(option)
+                        } else {
+                            Text("System default (\(languages.effectiveLanguage.endonym ?? "English"))").tag(option)
+                        }
+                    }
+                }
+                .pickerStyle(.radioGroup)
+            } header: {
+                Text("Language")
+            } footer: {
+                Text("twodos changes straight away. Keep the new language, or it switches back on its own after a few seconds.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Location access") {
+                    HStack(spacing: 8) {
+                        Text(locationStatus)
+                            .foregroundStyle(location.isDenied ? Brand.danger : .secondary)
+                        if location.authorization == .notDetermined {
+                            Button("Allow…") { location.requestWhenInUse() }
+                        } else if location.isDenied {
+                            Button("Open System Settings…", action: MacLocationSettings.open)
+                        }
+                    }
+                }
+                Toggle(isOn: Binding(get: { opensAtLogin }, set: setOpensAtLogin)) {
+                    Text("Open twodos at login")
+                    Text("Place reminders only work while twodos is running. Closing the window keeps it running; this starts it when you log in.")
+                }
+                if let loginItemError {
+                    Text(loginItemError).font(.caption).foregroundStyle(Brand.danger)
+                }
+            } header: {
+                Text("Place reminders")
+            }
+        }
+        .formStyle(.grouped)
+        .padding(.vertical, 8)
+    }
+
+    private var locationStatus: String {
+        switch location.authorization {
+        case .notDetermined: String(localized: "Not asked yet")
+        case .denied, .restricted: String(localized: "Turned off")
+        default: String(localized: "Allowed")
+        }
+    }
+
+    private func setOpensAtLogin(_ enabled: Bool) {
+        loginItemError = nil
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            loginItemError = String(localized: "macOS didn't allow that. You can add twodos under System Settings → General → Login Items.")
+        }
+        opensAtLogin = SMAppService.mainApp.status == .enabled
+    }
+}
+
+/// The Location Services pane, where a denied permission is turned back on.
+enum MacLocationSettings {
+    static func open() {
+        let pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices"
+        if let url = URL(string: pane) { NSWorkspace.shared.open(url) }
     }
 }
 
@@ -137,13 +236,44 @@ struct MacAppearanceSettings: View {
 
 // MARK: - Notifications
 
+/// The same switches as the iOS notification screen. They are subtractive:
+/// the system decides whether twodos may notify at all, these quiet the kinds
+/// you do not want.
 struct MacNotificationSettings: View {
-    @Environment(NotificationService.self) private var notifications
+    @Environment(NotificationSettingsStore.self) private var settings
 
     var body: some View {
+        @Bindable var settings = settings
         Form {
+            Section("What to notify me about") {
+                Toggle(isOn: $settings.deadlineReminders) {
+                    Text("Deadlines")
+                    Text("Lists and tasks with a due date")
+                }
+                Toggle(isOn: $settings.alarmAlerts) {
+                    Text("Alarms")
+                    Text("The alarms you set in Alarms")
+                }
+                Toggle(isOn: $settings.locationReminders) {
+                    Text("Place reminders")
+                    Text("When you arrive at or leave a saved place")
+                }
+                Toggle(isOn: $settings.partnerActivity) {
+                    Text("Partner activity")
+                    Text("Invites, and changes they make to shared lists")
+                }
+            }
+
+            Section("How they behave") {
+                Toggle("Play a sound", isOn: $settings.playSound)
+                Toggle(isOn: $settings.showWhileUsingApp) {
+                    Text("Show while I'm in twodos")
+                    Text("Banners appear even when the app is in front")
+                }
+            }
+
             Section {
-                Text("twodos asks the system for permission to show alerts. Which kinds you receive is controlled here; whether they appear at all is controlled in System Settings.")
+                Text("Whether twodos may show alerts at all is controlled in System Settings.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -157,6 +287,266 @@ struct MacNotificationSettings: View {
         }
         .formStyle(.grouped)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Security
+
+/// How you get into the account, and how to leave it for good.
+struct MacSecuritySettings: View {
+    @Environment(AppStore.self) private var store
+    @State private var social = SocialSignInService()
+
+    @State private var message: String?
+    @State private var errorMessage: String?
+    @State private var connecting: SocialProvider?
+
+    // Password
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var resetCode = ""
+    @State private var resetCodeSent = false
+    @State private var isWorking = false
+
+    // Deletion
+    @State private var confirmingDeletion = false
+    @State private var deletionCodeSent = false
+    @State private var deletionCode = ""
+
+    private var user: CurrentUser? { store.user }
+    private var hasPassword: Bool { user?.hasPassword ?? true }
+    private var email: String { user?.email ?? "" }
+
+    private var providers: [SocialProvider] {
+        let offered = store.socialAuth?.availableProviders ?? []
+        let linked = store.socialLinks.compactMap(\.socialProvider)
+        var seen = Set<SocialProvider>()
+        return (offered + linked).filter { seen.insert($0).inserted }
+    }
+
+    /// The server refuses to remove the last way in.
+    private var canUnlink: Bool { hasPassword || store.socialLinks.count > 1 }
+
+    var body: some View {
+        Form {
+            if let errorMessage {
+                Section { Text(errorMessage).foregroundStyle(Brand.danger) }
+            } else if let message {
+                Section { Text(message).foregroundStyle(Brand.success) }
+            }
+
+            passwordSection
+            linkedAccountsSection
+            pictureSection
+            deletionSection
+        }
+        .formStyle(.grouped)
+        .padding(.vertical, 8)
+        .task {
+            await store.refreshSocialLinks()
+            if store.socialAuth == nil { await store.refreshSocialAuthConfig() }
+        }
+        .confirmationDialog("Delete your account?", isPresented: $confirmingDeletion) {
+            Button("Email Me a Code", role: .destructive) { Task { await requestDeletion() } }
+        } message: {
+            Text("Every list you made, and your place on every list shared with you, will be removed. This can't be undone.")
+        }
+    }
+
+    // MARK: Password
+
+    @ViewBuilder
+    private var passwordSection: some View {
+        Section("Password") {
+            if hasPassword {
+                SecureField("Current password", text: $currentPassword)
+                    .textContentType(.password)
+                SecureField("New password", text: $newPassword)
+                    .textContentType(.newPassword)
+                Text(newPassword.isEmpty ? PasswordRule.text : (PasswordRule.problem(newPassword) ?? PasswordRule.text))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Change Password") { Task { await changePassword() } }
+                    .disabled(currentPassword.isEmpty || !PasswordRule.isValid(newPassword) || isWorking)
+            } else {
+                // Accounts born from a social sign-in have no password until
+                // they set one, through the same emailed-code route as a reset.
+                Text("You sign in with a linked account. Set a password to sign in with \(email) as well.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if resetCodeSent {
+                    TextField("Code from your email", text: $resetCode)
+                    SecureField("New password", text: $newPassword)
+                        .textContentType(.newPassword)
+                    Text(PasswordRule.text).font(.caption).foregroundStyle(.secondary)
+                    Button("Set Password") { Task { await setPassword() } }
+                        .disabled(resetCode.isEmpty || !PasswordRule.isValid(newPassword) || isWorking)
+                } else {
+                    Button("Email Me a Code") { Task { await sendResetCode() } }
+                        .disabled(email.isEmpty || isWorking)
+                }
+            }
+        }
+    }
+
+    // MARK: Linked accounts
+
+    private var linkedAccountsSection: some View {
+        Section("Sign-in methods") {
+            LabeledContent("Email and password") {
+                Text(hasPassword ? email : String(localized: "Not set up"))
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(providers) { provider in
+                let link = store.socialLinks.first { $0.socialProvider == provider }
+                LabeledContent {
+                    if let link {
+                        Button("Unlink") { Task { await store.unlinkSocial(provider: link.provider) } }
+                            .disabled(!canUnlink)
+                            .help(canUnlink ? "" : "This is your only way in. Set a password first.")
+                    } else if connecting == provider {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Connect") { connect(provider) }
+                            .disabled(connecting != nil)
+                    }
+                } label: {
+                    Text(provider.displayName)
+                    Text(link.map { $0.hasPicture ? "\($0.providerEmail) · has your picture" : $0.providerEmail }
+                         ?? String(localized: "Not connected"))
+                }
+            }
+        }
+    }
+
+    // MARK: Picture
+
+    @ViewBuilder
+    private var pictureSection: some View {
+        if !store.providersWithPictures.isEmpty {
+            Section("Profile picture") {
+                Picker("Show", selection: Binding(
+                    get: { user?.avatarProvider ?? "" },
+                    set: { value in
+                        Task {
+                            do {
+                                try await store.chooseAvatar(provider: SocialProvider(rawValue: value.lowercased()))
+                            } catch {
+                                errorMessage = error.userMessage
+                            }
+                        }
+                    }
+                )) {
+                    Text("Initials").tag("")
+                    ForEach(store.providersWithPictures) { link in
+                        Text("From \(link.displayName)").tag(link.provider)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Deletion
+
+    private var deletionSection: some View {
+        Section("Delete account") {
+            if deletionCodeSent {
+                Text("We've emailed a code to \(email). Enter it to delete your account for good.")
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                TextField("Code from your email", text: $deletionCode)
+                HStack {
+                    Button("Keep My Account") {
+                        deletionCodeSent = false
+                        deletionCode = ""
+                    }
+                    Spacer()
+                    Button("Delete Everything", role: .destructive) { Task { await completeDeletion() } }
+                        .disabled(deletionCode.isEmpty || isWorking)
+                }
+            } else {
+                Button("Delete Account…", role: .destructive) { confirmingDeletion = true }
+                    .disabled(email.isEmpty)
+            }
+        }
+    }
+
+    // MARK: Actions
+
+    private func run(_ work: () async throws -> Void) async {
+        isWorking = true
+        errorMessage = nil
+        message = nil
+        defer { isWorking = false }
+        do { try await work() } catch { errorMessage = error.userMessage }
+    }
+
+    private func changePassword() async {
+        await run {
+            try await store.changePassword(current: currentPassword, new: newPassword)
+            currentPassword = ""
+            newPassword = ""
+            message = String(localized: "Your password has been changed.")
+        }
+    }
+
+    private func sendResetCode() async {
+        await run {
+            _ = try await APIClient.shared.requestPasswordReset(email: email)
+            resetCodeSent = true
+            message = String(localized: "We've sent a code to \(email).")
+        }
+    }
+
+    private func setPassword() async {
+        await run {
+            _ = try await APIClient.shared.resetPassword(email: email, token: resetCode, password: newPassword)
+            await store.refreshUser()
+            resetCodeSent = false
+            resetCode = ""
+            newPassword = ""
+            message = String(localized: "Password set. You can now sign in with \(email).")
+        }
+    }
+
+    private func connect(_ provider: SocialProvider) {
+        guard let config = store.socialAuth else { return }
+        connecting = provider
+        errorMessage = nil
+        message = nil
+        Task {
+            defer { connecting = nil }
+            do {
+                let token: String
+                if provider == .apple {
+                    token = try await social.appleIdentityToken().token
+                } else {
+                    token = try await social.token(for: provider, config: config).token
+                }
+                try await store.linkSocial(provider: provider, token: token)
+                message = String(localized: "\(provider.displayName) is connected.")
+            } catch let failure as SocialSignInService.Failure {
+                if !failure.isCancellation {
+                    errorMessage = failure.errorDescription ?? String(localized: "That didn't complete. Please try again.")
+                }
+            } catch {
+                errorMessage = error.userMessage
+            }
+        }
+    }
+
+    private func requestDeletion() async {
+        await run {
+            try await store.requestAccountDeletion(email: email)
+            deletionCodeSent = true
+        }
+    }
+
+    private func completeDeletion() async {
+        await run {
+            try await store.completeAccountDeletion(email: email, token: deletionCode)
+        }
     }
 }
 

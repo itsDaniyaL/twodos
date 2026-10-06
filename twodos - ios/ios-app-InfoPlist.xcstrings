@@ -34,6 +34,24 @@
             "state" : "new",
             "value" : "twodos watches for the places you pin to a list so a reminder can arrive the moment you get there — even when the app is closed."
           }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos überwacht die Orte, die du einer Liste zuordnest, damit dich eine Erinnerung genau dann erreicht, wenn du ankommst – auch bei geschlossener App."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos отслеживает места, привязанные к спискам, чтобы напоминание пришло, как только ты туда доберёшься, — даже когда приложение закрыто."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos houdt de plekken bij die je aan een lijst koppelt, zodat een herinnering je bereikt zodra je er bent — ook als de app gesloten is."
+          }
         }
       }
     },
@@ -46,6 +64,24 @@
             "state" : "new",
             "value" : "twodos uses your location to centre the map and to pin a place to a list, so a reminder can find you when you arrive or leave."
           }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos nutzt deinen Standort, um die Karte zu zentrieren und einer Liste einen Ort zuzuordnen, damit dich eine Erinnerung beim Ankommen oder Gehen erreicht."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos использует геопозицию, чтобы центрировать карту и привязать место к списку — тогда напоминание найдёт тебя, когда ты придёшь или уйдёшь."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "twodos gebruikt je locatie om de kaart te centreren en een plek aan een lijst te koppelen, zodat een herinnering je vindt als je aankomt of vertrekt."
+          }
         }
       }
     },
@@ -57,6 +93,24 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Your data helps us keep twodos reliable and improve the experience for you."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Daten helfen uns, twodos zuverlässig zu halten und für dich zu verbessern."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Твои данные помогают нам поддерживать надёжность twodos и делать его лучше."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je gegevens helpen ons twodos betrouwbaar te houden en voor je te verbeteren."
           }
         }
       }

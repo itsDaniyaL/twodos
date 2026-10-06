@@ -98,9 +98,9 @@ struct AuthField: View {
 
                 Group {
                     if isSecure && !revealPassword {
-                        SecureField(title, text: $text)
+                        SecureField(LocalizedStringKey(title), text: $text)
                     } else {
-                        TextField(title, text: $text)
+                        TextField(LocalizedStringKey(title), text: $text)
                     }
                 }
                 .textContentType(contentType)
@@ -301,10 +301,10 @@ struct AuthScaffold<Fields: View, Actions: View>: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(title)
+                        Text(localizable: title)
                             .font(.largeTitle.weight(.bold))
                             .accessibilityAddTraits(.isHeader)
-                        Text(subtitle)
+                        Text(localizable: subtitle)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

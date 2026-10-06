@@ -2,8 +2,9 @@ import SwiftUI
 
 /// Standalone alarms, separate from list deadlines.
 ///
-/// Split into upcoming and past so a screen full of alarms that already fired
-/// does not bury the one that matters next.
+/// Upcoming by default. Alarms and reminders that already went off are one
+/// tap away behind the Past filter rather than stacked under the live ones,
+/// where a screen full of them buried the one that matters next.
 struct AlarmsView: View {
     @Environment(AppStore.self) private var store
     @Environment(NotificationService.self) private var notifications
@@ -11,6 +12,13 @@ struct AlarmsView: View {
     @State private var showingCreate = false
     @State private var hasLoaded = false
     @State private var alarmToDelete: Alarm?
+    /// Which alarms are on screen. Starts on Upcoming every time: the past is
+    /// something you go and look for, not something you wade through.
+    @State private var filter: Filter = .upcoming
+
+    enum Filter: Hashable {
+        case upcoming, past
+    }
 
     var body: some View {
         NavigationStack {
@@ -77,11 +85,36 @@ struct AlarmsView: View {
                         )
                     }
 
-                    if !store.upcomingAlarms.isEmpty {
-                        section(title: "Upcoming", alarms: store.upcomingAlarms, isPast: false)
+                    Picker("Show", selection: $filter.animation(Motion.content)) {
+                        Text("Upcoming · \(store.upcomingAlarms.count)").tag(Filter.upcoming)
+                        Text("Past · \(store.pastAlarms.count)").tag(Filter.past)
                     }
-                    if !store.pastAlarms.isEmpty {
-                        section(title: "Past", alarms: store.pastAlarms, isPast: true)
+                    .pickerStyle(.segmented)
+                    .accessibilityHint("Switches between alarms still to come and ones that already went off")
+
+                    switch filter {
+                    case .upcoming:
+                        if store.upcomingAlarms.isEmpty {
+                            filterEmptyState(
+                                title: "Nothing coming up",
+                                message: store.pastAlarms.isEmpty
+                                    ? "New alarms and reminders will appear here."
+                                    : "Every alarm and reminder here has already gone off.",
+                                showPast: !store.pastAlarms.isEmpty
+                            )
+                        } else {
+                            section(title: "Upcoming", alarms: store.upcomingAlarms, isPast: false)
+                        }
+                    case .past:
+                        if store.pastAlarms.isEmpty {
+                            filterEmptyState(
+                                title: "No past alarms",
+                                message: "Alarms and reminders that have gone off will be kept here.",
+                                showPast: false
+                            )
+                        } else {
+                            section(title: "Past", alarms: store.pastAlarms, isPast: true)
+                        }
                     }
                 }
                 .padding(.horizontal, Metrics.gutter)
@@ -109,6 +142,17 @@ struct AlarmsView: View {
                 .transition(.rowInsertion)
             }
         }
+    }
+
+    private func filterEmptyState(title: LocalizedStringKey, message: LocalizedStringKey, showPast: Bool) -> some View {
+        EmptyStateView(
+            icon: "alarm",
+            title: title,
+            message: message,
+            actionTitle: showPast ? "Show past alarms" : nil,
+            action: showPast ? { withAnimation(Motion.content) { filter = .past } } : nil
+        )
+        .padding(.top, 24)
     }
 
     private func openSettings() {

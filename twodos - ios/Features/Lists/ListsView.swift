@@ -4,8 +4,12 @@ enum ListRoute: Hashable {
     case detail(String)
 }
 
-/// The home screen: every list, sorted the way the user asked for, with
-/// pending invites surfaced above them.
+/// The home screen: every list, sorted the way the user asked for.
+///
+/// Invitations waiting on *you* sit above everything as "Invites", because
+/// they need an answer. Invitations *you* sent and nobody has answered sit
+/// below your lists as "Pending invites" — still yours to use, but set apart so
+/// it is obvious nobody has joined them yet.
 struct ListsView: View {
     @Binding var path: [ListRoute]
     @Environment(AppStore.self) private var store
@@ -147,6 +151,10 @@ struct ListsView: View {
                     .transition(.rowInsertion)
                 }
 
+                if !store.awaitingPartnerLists.isEmpty {
+                    sentInvitesSection
+                }
+
                 if !store.archivedLists.isEmpty {
                     archivedSection
                 }
@@ -167,20 +175,45 @@ struct ListsView: View {
         if !store.pendingInvites.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(
-                    title: "Invitations",
+                    title: "Invites",
                     count: store.pendingInvites.count,
                     icon: "envelope.badge"
                 )
                 ForEach(store.pendingInvites) { list in
                     InviteCard(
                         list: list,
-                        fromName: store.partner(id: list.createdBy)?.displayName
+                        fromName: store.counterpart(for: list)?.name
                     )
                     .transition(.rowInsertion)
                 }
             }
             .padding(.bottom, 6)
         }
+    }
+
+    /// Lists you shared that are waiting for an answer.
+    private var sentInvitesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(
+                title: "Pending invites",
+                count: store.awaitingPartnerLists.count,
+                icon: "paperplane"
+            )
+            ForEach(store.awaitingPartnerLists) { list in
+                ListCard(
+                    list: list,
+                    partner: store.partner(id: list.partnerId),
+                    currentUserId: store.currentUserId,
+                    matchedID: list.id,
+                    namespace: cardNamespace,
+                    isSelected: isShowingInDetail(list.id)
+                ) {
+                    open(list.id)
+                }
+                .transition(.rowInsertion)
+            }
+        }
+        .padding(.top, 12)
     }
 
     @ViewBuilder
@@ -277,7 +310,13 @@ struct ListsView: View {
     }
 
     /// Search moved to its own tab — see ``SearchView``.
-    private var displayedLists: [TodoList] { store.activeLists }
+    ///
+    /// Without the lists still waiting on the other person, which have their
+    /// own section further down.
+    private var displayedLists: [TodoList] {
+        let awaiting = Set(store.awaitingPartnerLists.map(\.id))
+        return store.activeLists.filter { !awaiting.contains($0.id) }
+    }
 }
 
 // MARK: - Section label

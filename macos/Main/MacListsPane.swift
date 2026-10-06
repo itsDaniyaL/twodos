@@ -22,8 +22,9 @@ struct MacListsPane: View {
                 emptyState
             } else {
                 List(selection: $selection) {
+                    // Waiting on you, so first: they need an answer.
                     if !store.pendingInvites.isEmpty && query.isEmpty {
-                        Section("Invitations") {
+                        Section("Invites") {
                             ForEach(store.pendingInvites) { list in
                                 MacInviteRow(list: list)
                             }
@@ -33,6 +34,16 @@ struct MacListsPane: View {
                     Section(query.isEmpty ? "Lists" : "Results") {
                         ForEach(visibleLists) { list in
                             MacListRow(list: list).tag(list.id)
+                        }
+                    }
+
+                    // Waiting on them: still yours to use, set apart so it is
+                    // obvious nobody has joined yet.
+                    if !store.awaitingPartnerLists.isEmpty && query.isEmpty {
+                        Section("Pending Invites") {
+                            ForEach(store.awaitingPartnerLists) { list in
+                                MacListRow(list: list).tag(list.id)
+                            }
                         }
                     }
 
@@ -54,7 +65,10 @@ struct MacListsPane: View {
     /// Matches a list by its own name or by anything written in it, so a search
     /// finds "milk" in a list called "Tesco".
     private var visibleLists: [TodoList] {
-        guard !query.isEmpty else { return store.activeLists }
+        guard !query.isEmpty else {
+            let awaiting = Set(store.awaitingPartnerLists.map(\.id))
+            return store.activeLists.filter { !awaiting.contains($0.id) }
+        }
         let needle = query.lowercased()
         return store.activeLists.filter { list in
             list.label.lowercased().contains(needle)
@@ -104,8 +118,14 @@ struct MacListRow: View {
 
             Spacer(minLength: 6)
 
-            if let partner = store.partner(id: partnerId) {
-                MacAvatar(partner: partner, size: 22)
+            if let counterpart = store.counterpart(for: list) {
+                if counterpart.state == .accepted, let person = counterpart.partner {
+                    MacAvatar(partner: person, size: 22)
+                } else {
+                    Image(systemName: counterpart.icon)
+                        .foregroundStyle(counterpart.isPending ? Brand.warning : Brand.danger)
+                        .help(counterpart.statusText)
+                }
             }
         }
         .padding(.vertical, 3)
@@ -125,14 +145,16 @@ struct MacListRow: View {
         }
     }
 
-    private var partnerId: String? {
-        guard list.hasPartner else { return nil }
-        return list.partnerId == store.currentUserId ? list.createdBy : list.partnerId
-    }
-
+    /// Progress, then who it is shared with and where that stands — "Waiting
+    /// for @sam to accept" rather than a bare name.
     private var subtitle: String {
-        guard list.totalCount > 0 else { return "Empty" }
-        return "\(list.completedCount) of \(list.totalCount) done"
+        var parts = [list.totalCount > 0
+                     ? "\(list.completedCount) of \(list.totalCount) done"
+                     : String(localized: "Empty")]
+        if let counterpart = store.counterpart(for: list) {
+            parts.append(counterpart.statusText)
+        }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -167,8 +189,8 @@ struct MacInviteRow: View {
     }
 
     private var invitedBy: String {
-        guard let partner = store.partner(id: list.createdBy) else { return "Shared with you" }
-        return "From \(partner.displayName)"
+        guard let name = store.counterpart(for: list)?.name else { return "You've been invited to share this list" }
+        return "From \(name)"
     }
 }
 

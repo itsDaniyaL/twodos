@@ -2,6 +2,7 @@ import SwiftUI
 
 /// The account and settings hub.
 struct ProfileView: View {
+    @Environment(LanguageStore.self) private var languages
     @Environment(AppStore.self) private var store
     @Environment(ThemeStore.self) private var theme
 
@@ -21,7 +22,7 @@ struct ProfileView: View {
     @AppStorage("usernameHighlightDismissed") private var usernameHighlightDismissed = false
 
     enum Route: Hashable {
-        case appearance, notifications, partners, security, about, deleteAccount
+        case appearance, language, notifications, partners, security, about, deleteAccount
     }
 
     var body: some View {
@@ -60,6 +61,7 @@ struct ProfileView: View {
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .appearance: AppearanceSettingsView()
+                case .language: LanguageSettingsView()
                 case .notifications: NotificationSettingsView()
                 case .partners: PartnersView()
                 case .security: SecurityView()
@@ -224,7 +226,7 @@ struct ProfileView: View {
     private var statsRow: some View {
         HStack(spacing: 10) {
             StatTile(value: store.activeLists.count, label: "Lists", icon: "checklist")
-            StatTile(value: store.partners.count(where: { !store.isBlocked($0.id) }),
+            StatTile(value: store.acceptedPartners.count,
                      label: "Partners", icon: "person.2")
             StatTile(value: openItemCount, label: "To do", icon: "circle.dashed")
         }
@@ -241,6 +243,11 @@ struct ProfileView: View {
                      showsChevron: true,
                      action: { path.append(Route.appearance) })
             GlassDivider()
+            GlassRow(icon: "character.bubble", title: "Language",
+                     subtitle: languageSubtitle,
+                     showsChevron: true,
+                     action: { path.append(Route.language) })
+            GlassDivider()
             GlassRow(icon: "bell.badge", title: "Notifications",
                      subtitle: "Reminders, alarms, and partner activity",
                      showsChevron: true,
@@ -253,11 +260,21 @@ struct ProfileView: View {
         }
     }
 
+    /// The language's own name, or "System default (English)".
+    private var languageSubtitle: String {
+        if let name = languages.language.endonym { return name }
+        return String(localized: "System default (\(languages.effectiveLanguage.endonym ?? "English"))")
+    }
+
     private var partnerSubtitle: String {
-        let active = store.partners.count { !store.isBlocked($0.id) }
-        let blocked = store.blockedUserIds.count
-        if active == 0 && blocked == 0 { return "Nobody yet" }
+        // Counted from the same array the Partners screen splits into
+        // sections, so the two can never show different numbers.
+        let active = store.acceptedPartners.count
+        let pending = store.partners.count { $0.isPending && !$0.isInBlock && !store.isBlocked($0.id) }
+        let blocked = store.partners.count { $0.isInBlock || store.isBlocked($0.id) }
+        if active == 0 && pending == 0 && blocked == 0 { return "Nobody yet" }
         var parts = ["\(active) partner\(active == 1 ? "" : "s")"]
+        if pending > 0 { parts.append("\(pending) pending") }
         if blocked > 0 { parts.append("\(blocked) blocked") }
         return parts.joined(separator: " · ")
     }
@@ -336,7 +353,7 @@ struct StatTile: View {
                 Text("\(value)")
                     .font(.title2.weight(.bold))
                     .contentTransition(.numericText())
-                Text(label)
+                Text(localizable: label)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

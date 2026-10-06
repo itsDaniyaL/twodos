@@ -41,27 +41,7 @@ struct MacCard<Content: View>: View {
 /// An inline message. The Mac counterpart of the iOS `InlineBanner`, with the
 /// same four kinds so a shared message reads the same on both platforms.
 struct MacBanner: View {
-    enum Kind {
-        case info, warning, error, success
-
-        var icon: String {
-            switch self {
-            case .info: "info.circle.fill"
-            case .warning: "exclamationmark.triangle.fill"
-            case .error: "exclamationmark.circle.fill"
-            case .success: "checkmark.circle.fill"
-            }
-        }
-
-        var tint: Color {
-            switch self {
-            case .info: Brand.info
-            case .warning: Brand.warning
-            case .error: Brand.danger
-            case .success: Brand.success
-            }
-        }
-    }
+    typealias Kind = AppStore.BannerMessage.Kind
 
     var kind: Kind
     var title: String
@@ -78,15 +58,15 @@ struct MacBanner: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.headline)
+                    Text(localizable: title).font(.headline)
                     if let message {
-                        Text(message)
+                        Text(localizable: message)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     if let actionTitle, let action {
-                        Button(actionTitle, action: action)
+                        Button(action: action) { Text(localizable: actionTitle) }
                             .buttonStyle(.link)
                             .padding(.top, 2)
                     }
@@ -133,9 +113,9 @@ struct MacEmptyState: View {
             }
 
             VStack(spacing: 6) {
-                Text(title)
+                Text(localizable: title)
                     .font(.title3.weight(.semibold))
-                Text(message)
+                Text(localizable: message)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -144,7 +124,7 @@ struct MacEmptyState: View {
             .frame(maxWidth: 380)
 
             if let actionTitle, let action {
-                Button(actionTitle, action: action)
+                Button(action: action) { Text(localizable: actionTitle) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
             }
@@ -163,7 +143,7 @@ struct MacLoadingView: View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.large)
-            Text(message)
+            Text(localizable: message)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

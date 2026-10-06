@@ -97,19 +97,19 @@ struct AboutView: View {
 
     private var notificationStatusText: String {
         switch notifications.authorization {
-        case .authorized, .provisional, .ephemeral: "Allowed"
-        case .denied: "Not allowed — reminders can't reach you"
-        case .notDetermined: "Not asked yet"
+        case .authorized, .provisional, .ephemeral: String(localized: "Allowed")
+        case .denied: String(localized: "Not allowed — reminders can't reach you")
+        case .notDetermined: String(localized: "Not asked yet")
         @unknown default: "Unknown"
         }
     }
 
     private var locationStatusText: String {
         switch location.authorization {
-        case .authorizedAlways: "Always — place reminders work in the background"
-        case .authorizedWhenInUse: "While using twodos — place reminders only fire when the app is open"
-        case .denied, .restricted: "Not allowed — place reminders are off"
-        case .notDetermined: "Not asked yet"
+        case .authorizedAlways: String(localized: "Always — place reminders work in the background")
+        case .authorizedWhenInUse: String(localized: "While using twodos — place reminders only fire when the app is open")
+        case .denied, .restricted: String(localized: "Not allowed — place reminders are off")
+        case .notDetermined: String(localized: "Not asked yet")
         @unknown default: "Unknown"
         }
     }

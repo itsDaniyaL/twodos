@@ -8,12 +8,29 @@ struct PartnersView: View {
     @State private var reportTarget: Partner?
     @State private var blockTarget: Partner?
 
-    private var activePartners: [Partner] {
-        store.partners.filter { !store.isBlocked($0.id) }
+    // Every bucket is cut from the one `store.partners` array, and each person
+    // lands in exactly one, so the section counts always add up to the list
+    // on screen — and agree with the Partners tile on the profile, which
+    // counts `acceptedPartners` too.
+
+    private func isBlockedEitherWay(_ partner: Partner) -> Bool {
+        partner.isInBlock || store.isBlocked(partner.id)
+    }
+
+    private var activePartners: [Partner] { store.acceptedPartners }
+
+    private var pendingPartners: [Partner] {
+        store.partners.filter { $0.isPending && !isBlockedEitherWay($0) }
+    }
+
+    /// Declined, or no current invitation at all — known people you are not
+    /// sharing anything with right now.
+    private var inactivePartners: [Partner] {
+        store.partners.filter { !$0.isAccepted && !$0.isPending && !isBlockedEitherWay($0) }
     }
 
     private var blockedPartners: [Partner] {
-        store.partners.filter { store.isBlocked($0.id) }
+        store.partners.filter(isBlockedEitherWay)
     }
 
     var body: some View {
@@ -74,6 +91,12 @@ struct PartnersView: View {
                     if !activePartners.isEmpty {
                         section(title: "Sharing with", partners: activePartners, isBlocked: false)
                     }
+                    if !pendingPartners.isEmpty {
+                        section(title: "Invite pending", partners: pendingPartners, isBlocked: false)
+                    }
+                    if !inactivePartners.isEmpty {
+                        section(title: "Not sharing", partners: inactivePartners, isBlocked: false)
+                    }
                     if !blockedPartners.isEmpty {
                         section(title: "Blocked", partners: blockedPartners, isBlocked: true)
                     }
@@ -86,6 +109,15 @@ struct PartnersView: View {
         }
     }
 
+    /// The server's count when the directory supplied one; otherwise counted
+    /// from the lists on this device, from either side of the invitation.
+    private func sharedListCount(with partner: Partner) -> Int {
+        if partner.listCount > 0 { return partner.acceptedListCount }
+        return store.lists.count {
+            !$0.archived && ($0.partnerId == partner.id || $0.createdBy == partner.id)
+        }
+    }
+
     private func section(title: LocalizedStringKey, partners: [Partner], isBlocked: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(title: title, count: partners.count)
@@ -95,7 +127,7 @@ struct PartnersView: View {
                     isBlocked: isBlocked,
                     isOnline: store.isPartnerOnline(partner.id),
                     lastSeen: store.lastSeen[partner.id],
-                    sharedListCount: store.lists.count { $0.partnerId == partner.id && !$0.archived },
+                    sharedListCount: sharedListCount(with: partner),
                     onToggleBlock: { blockTarget = partner },
                     onReport: { reportTarget = partner }
                 )
@@ -134,13 +166,20 @@ struct PartnerRow: View {
                     // type to share another list with them, and it is the
                     // shorter of the two. The address is still there for
                     // anyone who has not claimed a handle.
-                    Text(partner.handle ?? partner.email)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if let secondary = partner.handle ?? (partner.email.isEmpty ? nil : partner.email),
+                       secondary != partner.displayName {
+                        Text(secondary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                     HStack(spacing: 6) {
                         if isBlocked {
-                            MetaChip(icon: "hand.raised.fill", text: "Blocked", tint: Brand.danger)
+                            MetaChip(
+                                icon: "hand.raised.fill",
+                                text: partner.blockedByThem && !partner.blocked ? "Unavailable" : "Blocked",
+                                tint: Brand.danger
+                            )
                         } else {
                             if sharedListCount > 0 {
                                 MetaChip(icon: "checklist",
@@ -148,6 +187,8 @@ struct PartnerRow: View {
                             }
                             if partner.isPending {
                                 MetaChip(icon: "clock", text: "Invite pending", tint: Brand.warning)
+                            } else if partner.isRejected {
+                                MetaChip(icon: "xmark.circle", text: "Declined", tint: .secondary)
                             } else if isOnline {
                                 MetaChip(icon: "circle.fill", text: "Online", tint: Brand.success)
                             }
@@ -183,7 +224,8 @@ struct PartnerRow: View {
     }
 
     private var accessibilityLabel: String {
-        var parts = [partner.displayName, partner.handle ?? partner.email]
+        var parts = [partner.displayName]
+        if let handle = partner.handle { parts.append(handle) }
         if isBlocked { parts.append("Blocked") }
         else if isOnline { parts.append("Online") }
         else if let lastSeen { parts.append(Format.lastSeen(lastSeen)) }

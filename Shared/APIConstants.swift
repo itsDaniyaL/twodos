@@ -90,8 +90,8 @@ enum ListPriority: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .urgent: "Urgent"
-        case .nonUrgent: "Not urgent"
+        case .urgent: String(localized: "Urgent")
+        case .nonUrgent: String(localized: "Not urgent")
         }
     }
 
@@ -128,15 +128,15 @@ enum GeofenceTrigger: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .arrive: "When I arrive"
-        case .leave: "When I leave"
+        case .arrive: String(localized: "When I arrive")
+        case .leave: String(localized: "When I leave")
         }
     }
 
     var shortTitle: String {
         switch self {
-        case .arrive: "Arrive"
-        case .leave: "Leave"
+        case .arrive: String(localized: "Arrive")
+        case .leave: String(localized: "Leave")
         }
     }
 
@@ -168,9 +168,9 @@ enum AlarmTarget: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .me: "Only me"
-        case .partner: "Only my partner"
-        case .both: "Both of us"
+        case .me: String(localized: "Only me")
+        case .partner: String(localized: "Only my partner")
+        case .both: String(localized: "Both of us")
         }
     }
 
@@ -200,10 +200,10 @@ enum AlarmRepeat: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .never: "Once"
-        case .daily: "Every day"
-        case .weekly: "Every week"
-        case .monthly: "Every month"
+        case .never: String(localized: "Once")
+        case .daily: String(localized: "Every day")
+        case .weekly: String(localized: "Every week")
+        case .monthly: String(localized: "Every month")
         }
     }
 
@@ -225,23 +225,23 @@ enum SortOrder: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .lastUpdated: "Recently used"
-        case .alphabetical: "Name"
-        case .priority: "Priority"
-        case .created: "Date created"
-        case .deadline: "Deadline"
-        case .manual: "Custom order"
+        case .lastUpdated: String(localized: "Recently used")
+        case .alphabetical: String(localized: "Name")
+        case .priority: String(localized: "Priority")
+        case .created: String(localized: "Date created")
+        case .deadline: String(localized: "Deadline")
+        case .manual: String(localized: "Custom order")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .lastUpdated: "Most recently touched first"
-        case .alphabetical: "A to Z"
-        case .priority: "Urgent lists first"
-        case .created: "Newest first"
-        case .deadline: "Soonest deadline first"
-        case .manual: "The order you arranged"
+        case .lastUpdated: String(localized: "Most recently touched first")
+        case .alphabetical: String(localized: "A to Z")
+        case .priority: String(localized: "Urgent lists first")
+        case .created: String(localized: "Newest first")
+        case .deadline: String(localized: "Soonest deadline first")
+        case .manual: String(localized: "The order you arranged")
         }
     }
 

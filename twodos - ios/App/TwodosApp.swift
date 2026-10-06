@@ -61,6 +61,9 @@ struct TwodosApp: App {
     @State private var notifications = NotificationService.shared
     @State private var location = LocationService.shared
     @State private var commands = AppCommands()
+    /// Created with the app so the bundle is pointed at the chosen language
+    /// before the first string is read.
+    @State private var languages = LanguageStore.shared
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -71,8 +74,10 @@ struct TwodosApp: App {
             // ancestors, and an ancestor cannot see what a descendant provides.
             RootView()
                 .themed()
+                .appLanguage()
                 .environment(store)
                 .environment(theme)
+                .environment(languages)
                 .environment(notificationSettings)
                 .environment(notifications)
                 .environment(location)

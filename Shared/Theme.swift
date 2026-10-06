@@ -86,13 +86,13 @@ enum AccentTheme: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .meadow: "Meadow"
-        case .apricot: "Apricot"
-        case .violet: "Violet"
-        case .lime: "Lime"
-        case .ocean: "Ocean"
-        case .sunset: "Sunset"
-        case .graphite: "Graphite"
+        case .meadow: String(localized: "Meadow")
+        case .apricot: String(localized: "Apricot")
+        case .violet: String(localized: "Violet")
+        case .lime: String(localized: "Lime")
+        case .ocean: String(localized: "Ocean")
+        case .sunset: String(localized: "Sunset")
+        case .graphite: String(localized: "Graphite")
         }
     }
 

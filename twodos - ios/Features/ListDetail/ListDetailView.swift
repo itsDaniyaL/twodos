@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 /// A single list and its items.
 ///
@@ -41,6 +42,13 @@ struct ListDetailView: View {
     @State private var deadlineTarget: DeadlineTarget?
     @State private var showingChallenge = false
     @State private var typingTask: Task<Void, Never>?
+    /// "Just my tasks". Offered once you have taken something on, because
+    /// until then there is nothing for it to narrow to.
+    @State private var onlyMine = false
+    /// Files queued for the item being typed, uploaded once it exists.
+    @State private var draftAttachments: [AttachmentDraft] = []
+    @State private var newPhotoItems: [PhotosPickerItem] = []
+    @State private var showingNewFileImporter = false
     @FocusState private var addFieldFocused: Bool
     @FocusState private var notesFieldFocused: Bool
 
@@ -133,11 +141,24 @@ struct ListDetailView: View {
                 LazyVStack(spacing: 8) {
                     header(for: list)
 
+                    if showsAssigneeFilter(for: list) {
+                        assigneeFilter(for: list)
+                    }
+
                     if list.todos.isEmpty {
                         emptyState
+                    } else if onlyMine && visibleTodos(in: list).isEmpty {
+                        EmptyStateView(
+                            icon: "person.crop.circle.badge.checkmark",
+                            title: "Nothing on your plate",
+                            message: "No task on this list is yours right now. Say “I'll do it” on one to see it here.",
+                            actionTitle: "Show everything",
+                            action: { withAnimation(Motion.content) { onlyMine = false } }
+                        )
+                        .padding(.top, 24)
                     } else {
                         openItems(for: list)
-                        if list.isComplete { allDoneBanner(for: list) }
+                        if list.isComplete && !onlyMine { allDoneBanner(for: list) }
                         completedItems(for: list)
                     }
                 }
@@ -173,10 +194,10 @@ struct ListDetailView: View {
 
     /// The person this list is shared with, if anyone.
     private var collaborator: Partner? {
-        guard let list, !list.isEffectivelyPersonal(currentUserId: store.currentUserId) else {
-            return nil
-        }
-        return store.partner(id: list.partnerId)
+        guard let list else { return nil }
+        // The other person, from either side: for an invitee `partnerId` is
+        // their own id, and the person they share with is the creator.
+        return store.counterpart(for: list)?.partner
     }
 
     /// Only things that are *temporarily* true live here. Deadlines and the
@@ -280,32 +301,94 @@ struct ListDetailView: View {
         .accessibilityLabel("All items complete")
     }
 
+    // MARK: - Who does what
+
+    /// The list as it is being looked at — everything, or just your share.
+    private func visibleTodos(in list: TodoList) -> [Todo] {
+        guard onlyMine, let me = store.currentUserId else { return list.todos }
+        return list.todos.filter { $0.assigneeId == me }
+    }
+
+    /// Only on a list with somebody else on it, and only once you have said
+    /// "I'll do it" to something. Kept on screen while it is switched on, so
+    /// finishing your last task cannot strand you in an empty filter.
+    private func showsAssigneeFilter(for list: TodoList) -> Bool {
+        guard !list.isEffectivelyPersonal(currentUserId: store.currentUserId) else { return false }
+        return onlyMine || list.todos.contains { $0.assigneeId != nil && $0.assigneeId == store.currentUserId }
+    }
+
+    private func assigneeFilter(for list: TodoList) -> some View {
+        let mine = list.todos.count { $0.assigneeId != nil && $0.assigneeId == store.currentUserId && !$0.done }
+        return Picker("Show", selection: Binding(
+            get: { onlyMine },
+            set: { value in withAnimation(Motion.content) { onlyMine = value } }
+        )) {
+            Text("All tasks").tag(false)
+            Text("Just my tasks · \(mine)").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .padding(.bottom, 4)
+        .accessibilityHint("Shows only the tasks you said you'd do")
+    }
+
+    private func assign(_ choice: AssigneeChoice, todo: Todo, in list: TodoList) {
+        guard let me = store.currentUserId else { return }
+        let target: String?
+        switch choice {
+        case .me:
+            target = me
+        case .partner:
+            // The other person is whichever of the two ids is not yours.
+            let other = list.createdBy == me ? list.partnerId : list.createdBy
+            guard let other, other != me else { return }
+            target = other
+        case .nobody:
+            target = nil
+        }
+        guard target != todo.assigneeId else { return }
+        Task { await store.setTodoAssignee(listId: listId, todoId: todo.id, assigneeId: target) }
+    }
+
+    private var otherPersonId: String? {
+        guard let list, let me = store.currentUserId else { return nil }
+        let other = list.createdBy == me ? list.partnerId : list.createdBy
+        return other == me ? nil : other
+    }
+
+    @ViewBuilder
+    private func row(for todo: Todo, in list: TodoList, done: Bool) -> some View {
+        let shared = !list.isEffectivelyPersonal(currentUserId: store.currentUserId)
+        let takesMedia = list.mediaAllowance?.enabled == true
+        TodoRow(
+            todo: todo,
+            listId: listId,
+            onToggle: { Task { await store.setTodo(listId: listId, todoId: todo.id, done: !done) } },
+            onEdit: { editFocus = .title; editingTodo = todo },
+            onEditNotes: { editFocus = .notes; editingTodo = todo },
+            onSetDeadline: {
+                deadlineTarget = .item(todoId: todo.id, currentDate: todo.doBefore, title: todo.title)
+            },
+            onSetLocation: { locationTodo = todo },
+            onAssign: shared && !done ? { assign($0, todo: todo, in: list) } : nil,
+            assigneeLabel: shared ? store.assigneeLabel(for: todo) : nil,
+            assignedToMe: todo.assigneeId != nil && todo.assigneeId == store.currentUserId,
+            assignedToPartner: todo.assigneeId != nil && todo.assigneeId == otherPersonId,
+            partnerName: store.counterpart(for: list)?.name,
+            onAttachments: takesMedia || todo.hasMedia
+                ? { editFocus = .attachments; editingTodo = todo }
+                : nil,
+            isInChallenge: done ? false : isInChallenge(todo),
+            onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
+        )
+    }
+
     @ViewBuilder
     private func openItems(for list: TodoList) -> some View {
-        let open = list.todos.filter { !$0.done }
+        let open = visibleTodos(in: list).filter { !$0.done }
         if !open.isEmpty {
             ForEach(open) { todo in
-                TodoRow(
-                    todo: todo,
-                    listId: listId,
-                    onToggle: { Task { await store.setTodo(listId: listId, todoId: todo.id, done: true) } },
-                    onEdit: { editFocus = .title; editingTodo = todo },
-                    onEditNotes: { editFocus = .notes; editingTodo = todo },
-                    onSetDeadline: {
-                        deadlineTarget = .item(
-                            todoId: todo.id,
-                            currentDate: todo.doBefore,
-                            title: todo.title
-                        )
-                    },
-                    onSetLocation: { locationTodo = todo },
-                    onToggleAssignee: list.hasPartner ? { cycleAssignee(todo, in: list) } : nil,
-                    assigneeInitials: assigneeInitials(for: todo),
-                    assignedToMe: todo.assigneeId != nil && todo.assigneeId == store.currentUserId,
-                    isInChallenge: isInChallenge(todo),
-                    onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
-                )
-                .transition(.rowInsertion)
+                row(for: todo, in: list, done: false)
+                    .transition(.rowInsertion)
             }
         }
     }
@@ -322,7 +405,7 @@ struct ListDetailView: View {
 
     @ViewBuilder
     private func completedItems(for list: TodoList) -> some View {
-        let done = list.todos.filter(\.done)
+        let done = visibleTodos(in: list).filter(\.done)
         if !done.isEmpty {
             VStack(spacing: 8) {
                 HStack {
@@ -361,22 +444,8 @@ struct ListDetailView: View {
 
                 if showCompleted {
                     ForEach(done) { todo in
-                        TodoRow(
-                            todo: todo,
-                            listId: listId,
-                            onToggle: { Task { await store.setTodo(listId: listId, todoId: todo.id, done: false) } },
-                            onEdit: { editFocus = .title; editingTodo = todo },
-                            onEditNotes: { editFocus = .notes; editingTodo = todo },
-                            onSetDeadline: {
-                                deadlineTarget = .item(todoId: todo.id, currentDate: todo.doBefore, title: todo.title)
-                            },
-                            onSetLocation: { locationTodo = todo },
-                            onToggleAssignee: nil,
-                            assigneeInitials: nil,
-                            assignedToMe: false,
-                            onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
-                        )
-                        .transition(.rowInsertion)
+                        row(for: todo, in: list, done: true)
+                            .transition(.rowInsertion)
                     }
                 }
             }
@@ -386,23 +455,6 @@ struct ListDetailView: View {
 
     private func answer(_ challenge: Challenge, accept: Bool) {
         Task { await store.answerChallenge(listId: listId, challengeId: challenge.id, accept: accept) }
-    }
-
-    /// Who has this task, as initials, or nil when nobody has claimed it.
-    private func assigneeInitials(for todo: Todo) -> String? {
-        guard let assigneeId = todo.assigneeId else { return nil }
-        if assigneeId == store.currentUserId { return "Me" }
-        return store.partner(id: assigneeId)?.initials ?? "?"
-    }
-
-    /// Cycles ownership: unclaimed → mine → theirs → unclaimed.
-    ///
-    /// A cycle rather than a picker because there are only ever two people on a
-    /// list, and a two-option menu costs more taps than it saves.
-    private func cycleAssignee(_ todo: Todo, in list: TodoList) {
-        guard let me = store.currentUserId else { return }
-        let next = AssigneeCycle.next(current: todo.assigneeId, me: me, partner: list.partnerId)
-        Task { await store.setTodoAssignee(listId: listId, todoId: todo.id, assigneeId: next) }
     }
 
     // MARK: - Add bar
@@ -421,6 +473,11 @@ struct ListDetailView: View {
                     .padding(.vertical, 11)
                     .glassEffect(.regular, in: .rect(cornerRadius: Metrics.controlRadius))
                     .accessibilityLabel("Notes for the new item")
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            if !draftAttachments.isEmpty {
+                DraftAttachmentStrip(drafts: $draftAttachments)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
@@ -454,6 +511,10 @@ struct ListDetailView: View {
                     .motion(Motion.tap, value: isAddingNotes)
                     .accessibilityLabel(isAddingNotes ? "Hide notes" : "Add notes")
                     .accessibilityHint("Adds an optional line of detail to the new item")
+
+                    if let allowance = list.mediaAllowance, allowance.enabled {
+                        newItemAttachMenu(allowance: allowance)
+                    }
                 }
                 .padding(.leading, 14)
                 .padding(.trailing, 8)
@@ -478,8 +539,72 @@ struct ListDetailView: View {
         .padding(.top, 10)
         .padding(.bottom, 6)
         .motion(Motion.content, value: isAddingNotes)
+        .motion(Motion.content, value: draftAttachments.count)
         .disabled(list.archived)
         .opacity(list.archived ? 0.5 : 1)
+        .onChange(of: newPhotoItems) { _, items in
+            guard !items.isEmpty else { return }
+            newPhotoItems = []
+            Task {
+                for item in items {
+                    if let draft = await AttachmentLoader.draft(from: item) { stage(draft, in: list) }
+                }
+            }
+        }
+        .fileImporter(
+            isPresented: $showingNewFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            guard case .success(let urls) = result else { return }
+            for url in urls {
+                if let draft = AttachmentLoader.draft(from: url) { stage(draft, in: list) }
+            }
+        }
+    }
+
+    /// A paperclip beside the notes toggle, for files that should arrive with
+    /// the task rather than be added to it afterwards.
+    private func newItemAttachMenu(allowance: MediaAllowance) -> some View {
+        let room = max(0, min(allowance.filesPerTask, allowance.remainingOnList) - draftAttachments.count)
+        return Menu {
+            PhotosPicker(
+                selection: $newPhotoItems,
+                maxSelectionCount: max(1, room),
+                matching: .any(of: [.images, .videos])
+            ) {
+                Label("Photo or video", systemImage: "photo.on.rectangle")
+            }
+            Button {
+                showingNewFileImporter = true
+            } label: {
+                Label("File", systemImage: "doc.badge.plus")
+            }
+        } label: {
+            Image(systemName: draftAttachments.isEmpty ? "paperclip" : "paperclip.badge.ellipsis")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(draftAttachments.isEmpty ? Color.secondary : Color.accentColor)
+                .frame(width: 28, height: 28)
+                .contentShape(.rect)
+        }
+        .disabled(room == 0)
+        .accessibilityLabel("Attach a file to the new item")
+    }
+
+    /// Queues a file for the item being typed, refusing what cannot fit now
+    /// rather than after the task has been created without it.
+    private func stage(_ draft: AttachmentDraft, in list: TodoList) {
+        guard let allowance = list.mediaAllowance else { return }
+        if allowance.maxFileBytes > 0, draft.sizeBytes > allowance.maxFileBytes {
+            store.banner = AppStore.BannerMessage(
+                kind: .warning,
+                title: "That file is too large",
+                message: String(localized: "“\(draft.fileName)” is \(Format.bytes(draft.sizeBytes)). Files can be up to \(Format.bytes(allowance.maxFileBytes)).")
+            )
+            return
+        }
+        guard draftAttachments.count < min(allowance.filesPerTask, allowance.remainingOnList) else { return }
+        draftAttachments.append(draft)
     }
 
     private func toggleNotesField() {
@@ -661,8 +786,8 @@ struct ListDetailView: View {
     /// whole story the sighted user reads from the badge.
     private var collaboratorAccessibilityLabel: String {
         guard let collaborator else { return "List info" }
-        if list?.isPendingInvite == true {
-            return "Shared with \(collaborator.displayName), invite not accepted yet"
+        if let list, let counterpart = store.counterpart(for: list), counterpart.state != .accepted {
+            return counterpart.statusText
         }
         if store.isPartnerTyping(inList: listId) {
             return "Shared with \(collaborator.displayName), typing"
@@ -678,13 +803,15 @@ struct ListDetailView: View {
         let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         let notes = Todo.normalisedNotes(draftNotes)
+        let attachments = draftAttachments
         draft = ""
         draftNotes = ""
+        draftAttachments = []
         isAddingNotes = false
         stopTyping()
         // Keep focus so a run of items can be typed without re-tapping.
         addFieldFocused = true
-        Task { await store.addTodo(listId: listId, title: title, notes: notes) }
+        Task { await store.addTodo(listId: listId, title: title, notes: notes, attachments: attachments) }
     }
 
     /// Debounced typing indicator. The "started" signal is sent immediately so
@@ -754,7 +881,7 @@ struct ActionBarButton: View {
                         .font(.system(size: 13, weight: .semibold))
                 }
 
-                Text(title)
+                Text(localizable: title)
                     .font(.caption2.weight(.medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)

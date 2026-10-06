@@ -13,10 +13,10 @@ enum MacSection: String, Hashable, Identifiable, CaseIterable {
 
     var title: String {
         switch self {
-        case .lists: "Lists"
-        case .alarms: "Alarms"
-        case .activity: "Activity"
-        case .partners: "Partners"
+        case .lists: String(localized: "Lists")
+        case .alarms: String(localized: "Alarms")
+        case .activity: String(localized: "Activity")
+        case .partners: String(localized: "Partners")
         }
     }
 
@@ -55,6 +55,7 @@ final class MacCommands {
     private(set) var newItemRequests = 0
     private(set) var refreshRequests = 0
     private(set) var focusSearchRequests = 0
+    private(set) var toggleInspectorRequests = 0
     private(set) var sectionRequest: SectionRequest?
 
     struct SectionRequest: Equatable {
@@ -71,6 +72,7 @@ final class MacCommands {
     func newItem() { newItemRequests += 1 }
     func refresh() { refreshRequests += 1 }
     func focusSearch() { focusSearchRequests += 1 }
+    func toggleInspector() { toggleInspectorRequests += 1 }
 
     func show(_ section: MacSection) {
         sectionRequest = SectionRequest(serial: (sectionRequest?.serial ?? 0) + 1, section: section)
@@ -111,6 +113,11 @@ struct MacMenuCommands: Commands {
             Button("Find") { commands.focusSearch() }
                 .keyboardShortcut("f", modifiers: .command)
                 .disabled(!isSignedIn)
+
+            // ⌥⌘I, the inspector shortcut every Apple app uses.
+            Button("Show/Hide Inspector") { commands.toggleInspector() }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+                .disabled(!isSignedIn || commands.openListId == nil)
         }
 
         CommandMenu("Go") {

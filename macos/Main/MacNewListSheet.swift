@@ -50,6 +50,27 @@ struct MacNewListSheet: View {
                     if isShared {
                         TextField("Email address or @username", text: $partnerRef)
                             .autocorrectionDisabled()
+                        // Most sharing is with the same one or two people, so
+                        // they are one click away.
+                        if !suggestedPartners.isEmpty {
+                            ScrollView(.horizontal) {
+                                HStack(spacing: 6) {
+                                    ForEach(suggestedPartners) { partner in
+                                        Button {
+                                            partnerRef = partner.shareReference
+                                        } label: {
+                                            HStack(spacing: 4) {
+                                                MacAvatar(partner: partner, size: 16)
+                                                Text(partner.identityLabel)
+                                            }
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                    }
+                                }
+                            }
+                            .scrollIndicators(.hidden)
+                        }
                         // The hint follows what is being typed, because the two
                         // routes differ for somebody with no account and the
                         // difference is not guessable.
@@ -75,6 +96,14 @@ struct MacNewListSheet: View {
         .padding(20)
         .frame(width: 440)
         .onAppear { nameFocused = true }
+    }
+
+    /// Anyone who can actually be invited — not blocked either way — with the
+    /// people you already share with first.
+    private var suggestedPartners: [Partner] {
+        store.partners
+            .filter { !$0.isInBlock && !store.isBlocked($0.id) && !$0.shareReference.isEmpty }
+            .sorted { $0.isAccepted && !$1.isAccepted }
     }
 
     private var partnerHint: String {

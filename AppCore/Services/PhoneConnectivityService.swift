@@ -108,20 +108,6 @@ final class PhoneConnectivityService: NSObject {
     }
 }
 
-/// Keys shared with the watch. Short, because the application context payload
-/// has a size limit and the list snapshot needs the room.
-enum WatchPayloadKey {
-    static let token = "t"
-    static let expiresAt = "e"
-    static let lists = "l"
-    static let signedOut = "o"
-    /// Watch → phone. The watch mirrors these in its own `Key` enum rather than
-    /// sharing this type, because the bridge file is not in the watch target.
-    static let request = "r"
-    static let sync = "sync"
-    static let didMutate = "mut"
-}
-
 // MARK: - Delegate
 
 extension PhoneConnectivityService: WCSessionDelegate {
@@ -225,3 +211,17 @@ final class PhoneConnectivityService: NSObject {
     ) {}
 }
 #endif
+
+/// Keys shared with the watch. Short, because the application context payload
+/// has a size limit and the list snapshot needs the room.
+enum WatchPayloadKey {
+    static let token = "t"
+    static let expiresAt = "e"
+    static let lists = "l"
+    static let signedOut = "o"
+    /// Watch → phone. The watch mirrors these in its own `Key` enum rather than
+    /// sharing this type, because the bridge file is not in the watch target.
+    static let request = "r"
+    static let sync = "sync"
+    static let didMutate = "mut"
+}

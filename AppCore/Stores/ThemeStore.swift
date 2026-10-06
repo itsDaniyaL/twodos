@@ -30,9 +30,9 @@ final class ThemeStore {
 
         var title: String {
             switch self {
-            case .system: "Automatic"
-            case .light: "Light"
-            case .dark: "Dark"
+            case .system: String(localized: "Automatic")
+            case .light: String(localized: "Light")
+            case .dark: String(localized: "Dark")
             }
         }
 
@@ -73,9 +73,9 @@ final class ThemeStore {
 
         var title: String {
             switch self {
-            case .compact: "Compact"
-            case .standard: "Standard"
-            case .large: "Large"
+            case .compact: String(localized: "Compact")
+            case .standard: String(localized: "Standard")
+            case .large: String(localized: "Large")
             }
         }
 

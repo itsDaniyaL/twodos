@@ -173,7 +173,7 @@ final class LocationService: NSObject {
     // MARK: - Status
 
     var hasAnyPermission: Bool {
-        authorization == .authorizedWhenInUse || authorization == .authorizedAlways
+        authorization.isWhenInUse || authorization == .authorizedAlways
     }
 
     var hasAlwaysPermission: Bool { authorization == .authorizedAlways }
@@ -184,7 +184,7 @@ final class LocationService: NSObject {
 
     /// True when geofences would silently not fire in the background — the state
     /// that deserves an explanatory prompt rather than silent failure.
-    var needsAlwaysUpgrade: Bool { authorization == .authorizedWhenInUse }
+    var needsAlwaysUpgrade: Bool { authorization.isWhenInUse }
 
     /// How many fences are currently monitored. Surfaced so a settings screen
     /// can be honest about what the app is asking the system to watch.
@@ -214,7 +214,7 @@ final class LocationService: NSObject {
     /// Step 3: asks to upgrade to Always. Only meaningful once While Using has
     /// been granted; iOS ignores it otherwise.
     func requestAlways() {
-        guard authorization == .authorizedWhenInUse else { return }
+        guard authorization.isWhenInUse else { return }
         logger.info("Requesting Always authorization.")
         manager.requestAlwaysAuthorization()
     }
@@ -843,5 +843,19 @@ extension LocationService: CLLocationManagerDelegate {
                 pending.resume(returning: nil)
             }
         }
+    }
+}
+
+private extension CLAuthorizationStatus {
+    /// Granted, but only While Using — so fences will not fire in the background.
+    ///
+    /// macOS has no While Using tier; a Mac grant is always Always, and the case
+    /// does not exist there to compare against.
+    var isWhenInUse: Bool {
+        #if os(macOS)
+        false
+        #else
+        self == .authorizedWhenInUse
+        #endif
     }
 }
