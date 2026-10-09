@@ -57,6 +57,11 @@ struct SocialAuthConfig: Decodable, Sendable {
         let appId: String?
         let redirectUri: String?
         let authorizationEndpoint: String?
+        /// The server-side flow. Meta only redirects a browser to an https URL
+        /// on its allow-list, so the server takes that redirect, exchanges the
+        /// code with the secret it holds, and bounces the access token back
+        /// over `redirectScheme`. Preferred whenever it is present.
+        let bridgeStartUrl: String?
         let scopes: [String]?
     }
 

@@ -96,6 +96,38 @@ final class SocialSignInService: NSObject {
         }
     }
 
+    /// Apple's *web* flow, through the server bridge:
+    /// `bridgeStartUrl?state=…` → Apple → the server's https callback →
+    /// `<redirectScheme>://social/apple?id_token=…&state=…[&name=…]`.
+    ///
+    /// For an app whose bundle ID is not the one the server verifies native
+    /// tokens against. The native sheet stamps the token's `aud` with the
+    /// requesting app's bundle ID; this flow stamps it with the Services ID,
+    /// which the server accepts alongside the iOS bundle ID.
+    func appleIdentityTokenViaBridge(config: SocialAuthConfig) async throws -> (token: String, name: String?) {
+        guard let apple = config.apple, apple.enabled,
+              let start = apple.bridgeStartUrl, !start.isEmpty,
+              let scheme = config.redirectScheme, !scheme.isEmpty,
+              var components = URLComponents(string: start)
+        else { throw Failure.notConfigured(.apple) }
+
+        let state = Self.randomURLSafeString()
+        components.queryItems = (components.queryItems ?? []) + [.init(name: "state", value: state)]
+        guard let startURL = components.url else { throw Failure.notConfigured(.apple) }
+
+        let callback = try await present(startURL, callbackScheme: scheme)
+        let returned = Self.queryItems(from: callback)
+
+        if let error = returned["error"] {
+            if error == "user_cancelled_authorize" { throw Failure.cancelled }
+            throw Failure.providerRejected("Apple couldn't complete the sign-in. Please try again.")
+        }
+        guard returned["state"] == state else { throw Failure.malformedResponse }
+        guard let token = returned["id_token"], !token.isEmpty else { throw Failure.malformedResponse }
+        let name = returned["name"].flatMap { $0.isEmpty ? nil : $0 }
+        return (token, name)
+    }
+
     // MARK: - Google
 
     /// Authorisation code + PKCE, exchanged for an `id_token`.
@@ -225,6 +257,8 @@ final class SocialSignInService: NSObject {
     /// deliberately do not. That is why this flow can be shorter than Google's
     /// without being looser — verification simply happens on the other side.
     private func facebookAccessToken(config: SocialAuthConfig) async throws -> String {
+        if let bridged = try await facebookAccessTokenViaBridge(config: config) { return bridged }
+
         guard let facebook = config.facebook,
               let appId = facebook.appId, !appId.isEmpty,
               let redirectUri = facebook.redirectUri, !redirectUri.isEmpty,
@@ -263,6 +297,36 @@ final class SocialSignInService: NSObject {
         // hands back a usable access token outright, with no code exchange and
         // so no PKCE behind it — accepting a response whose state is absent
         // would sign the user into whichever account the sender chose.
+        guard returned["state"] == state else { throw Failure.malformedResponse }
+        guard let token = returned["access_token"], !token.isEmpty else { throw Failure.malformedResponse }
+        return token
+    }
+
+    /// The server bridge: `bridgeStartUrl?state=…` → Meta → the server's
+    /// https callback → `<redirectScheme>://social/facebook?access_token=…&state=…`.
+    ///
+    /// Returns nil when the server offers no bridge, so the caller falls back
+    /// to the direct flow. The browser session captures the custom scheme
+    /// itself, so this needs no URL type registered with the system.
+    private func facebookAccessTokenViaBridge(config: SocialAuthConfig) async throws -> String? {
+        guard let start = config.facebook?.bridgeStartUrl, !start.isEmpty,
+              let scheme = config.redirectScheme, !scheme.isEmpty,
+              var components = URLComponents(string: start)
+        else { return nil }
+
+        let state = Self.randomURLSafeString()
+        components.queryItems = (components.queryItems ?? []) + [.init(name: "state", value: state)]
+        guard let startURL = components.url else { return nil }
+
+        let callback = try await present(startURL, callbackScheme: scheme)
+        let returned = Self.queryItems(from: callback)
+
+        if let error = returned["error"] {
+            if error == "access_denied" { throw Failure.cancelled }
+            throw Failure.providerRejected("Facebook couldn't complete the sign-in. Please try again.")
+        }
+        // The token arrives with no PKCE behind it, so the state check is what
+        // ties this callback to the request this process made.
         guard returned["state"] == state else { throw Failure.malformedResponse }
         guard let token = returned["access_token"], !token.isEmpty else { throw Failure.malformedResponse }
         return token

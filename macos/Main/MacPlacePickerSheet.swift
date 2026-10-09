@@ -144,7 +144,7 @@ struct MacPlacePickerSheet: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(item.name ?? "Place")
-                            if let address = item.address?.shortAddress {
+                            if let address = item.shortAddressText {
                                 Text(address).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                             }
                         }
@@ -252,7 +252,7 @@ struct MacPlacePickerSheet: View {
     }
 
     private func select(_ item: MKMapItem) {
-        let coordinate = item.location.coordinate
+        let coordinate = item.coordinateCompat
         pin = coordinate
         if placeName.trimmingCharacters(in: .whitespaces).isEmpty || results.contains(where: { $0.name == placeName }) {
             placeName = item.name ?? ""
@@ -319,5 +319,22 @@ struct MacPlacePickerSheet: View {
         case .item(let listId, let todo): await store.clearItemLocation(listId: listId, todoId: todo.id)
         }
         dismiss()
+    }
+}
+
+/// `MKMapItem.address` and `.location` arrived in macOS 26 and replace the
+/// placemark, which still works on macOS 15 — so the newer API is used where it
+/// exists and the placemark everywhere else.
+private extension MKMapItem {
+    var shortAddressText: String? {
+        if #available(macOS 26.0, *) { return address?.shortAddress }
+        let parts = [placemark.subThoroughfare, placemark.thoroughfare, placemark.locality]
+            .compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    var coordinateCompat: CLLocationCoordinate2D {
+        if #available(macOS 26.0, *) { return location.coordinate }
+        return placemark.coordinate
     }
 }

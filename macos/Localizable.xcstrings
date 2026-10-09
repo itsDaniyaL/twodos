@@ -2185,25 +2185,25 @@
         }
       }
     },
-    "Add the first task above. Whoever you share this with sees it straight away." : {
+    "Add the first task below. Whoever you share this with sees it straight away." : {
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Füge oben die erste Aufgabe hinzu. Wer die Liste mit dir teilt, sieht sie sofort."
+            "value" : "Füge unten die erste Aufgabe hinzu. Wer die Liste mit dir teilt, sieht sie sofort."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Voeg hierboven de eerste taak toe. Met wie je dit deelt, ziet het meteen."
+            "value" : "Voeg hieronder de eerste taak toe. Met wie je dit deelt, ziet het meteen."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Добавь первую задачу выше. Тот, с кем ты делишься списком, сразу её увидит."
+            "value" : "Добавь первую задачу ниже. Тот, с кем ты делишься списком, сразу её увидит."
           }
         }
       }
@@ -5039,6 +5039,9 @@
           }
         }
       }
+    },
+    "Continue with Apple" : {
+
     },
     "Continue with email" : {
       "extractionState" : "manual",
@@ -15687,6 +15690,9 @@
         }
       }
     },
+    "Settings (⌘,)" : {
+
+    },
     "Share a list with someone and they'll appear here. You can block or report anyone from this screen." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17276,6 +17282,9 @@
           }
         }
       }
+    },
+    "Task options" : {
+
     },
     "Tells you how much is left across your lists." : {
       "extractionState" : "manual",
@@ -21928,6 +21937,9 @@
           }
         }
       }
+    },
+    "Your profile and account" : {
+
     },
     "your saved place" : {
       "extractionState" : "manual",

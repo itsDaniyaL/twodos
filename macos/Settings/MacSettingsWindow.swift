@@ -12,23 +12,40 @@ import CoreLocation
 /// Tabs rather than a list, because that is what a Settings scene renders as
 /// throughout the system.
 struct MacSettingsWindow: View {
+    /// Remembered, and also written by the sidebar's account row so that
+    /// clicking your own name lands on Account rather than wherever the
+    /// window was last left.
+    @AppStorage(MacSettingsTab.storageKey) private var tab: MacSettingsTab = .general
+
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             MacGeneralSettings()
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(MacSettingsTab.general)
             MacAccountSettings()
                 .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                .tag(MacSettingsTab.account)
             MacSecuritySettings()
                 .tabItem { Label("Security", systemImage: "lock.shield") }
+                .tag(MacSettingsTab.security)
             MacAppearanceSettings()
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
+                .tag(MacSettingsTab.appearance)
             MacNotificationSettings()
                 .tabItem { Label("Notifications", systemImage: "bell.badge") }
+                .tag(MacSettingsTab.notifications)
             MacAboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
+                .tag(MacSettingsTab.about)
         }
         .frame(width: 560, height: 520)
     }
+}
+
+enum MacSettingsTab: String {
+    case general, account, security, appearance, notifications, about
+
+    static let storageKey = "mac.settings.tab"
 }
 
 // MARK: - General
@@ -318,7 +335,7 @@ struct MacSecuritySettings: View {
     private var email: String { user?.email ?? "" }
 
     private var providers: [SocialProvider] {
-        let offered = store.socialAuth?.availableProviders ?? []
+        let offered = store.socialAuth?.macAvailableProviders ?? []
         let linked = store.socialLinks.compactMap(\.socialProvider)
         var seen = Set<SocialProvider>()
         return (offered + linked).filter { seen.insert($0).inserted }
@@ -520,7 +537,7 @@ struct MacSecuritySettings: View {
             do {
                 let token: String
                 if provider == .apple {
-                    token = try await social.appleIdentityToken().token
+                    token = try await social.appleIdentityTokenViaBridge(config: config).token
                 } else {
                     token = try await social.token(for: provider, config: config).token
                 }

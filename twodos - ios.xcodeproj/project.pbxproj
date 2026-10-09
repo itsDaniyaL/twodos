@@ -86,7 +86,7 @@
 
 /* Begin PBXFileReference section */
 		1AC3149E3017D5350006F92C /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
-		1AC5996930602CE900EEB848 /* macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = macos.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1AC5996930602CE900EEB848 /* twodos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = twodos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1AE799F2301709D500ED7140 /* watchos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = watchos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1AFECA4F3016CDB700FF871A /* ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ios.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1ATEST0000000000000003 /* twodosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = twodosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -223,7 +223,7 @@
 				1AE799F2301709D500ED7140 /* watchos.app */,
 				1AWIOS0000000000000002 /* ios widgets.appex */,
 				1AWWCH0000000000000002 /* watchos widgets.appex */,
-				1AC5996930602CE900EEB848 /* macos.app */,
+				1AC5996930602CE900EEB848 /* twodos.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -252,7 +252,7 @@
 			packageProductDependencies = (
 			);
 			productName = macos;
-			productReference = 1AC5996930602CE900EEB848 /* macos.app */;
+			productReference = 1AC5996930602CE900EEB848 /* twodos.app */;
 			productType = "com.apple.product-type.application";
 		};
 		1AE799F1301709D500ED7140 /* watchos */ = {
@@ -588,7 +588,7 @@
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/macos-app.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -596,6 +596,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationUsageDescription = "twodos watches for the places you pin to a list so a reminder can find you when you arrive or leave.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "twodos uses your location to pin a place to a list, so a reminder can find you when you arrive or leave.";
@@ -603,10 +605,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.6;
-				MARKETING_VERSION = 1.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodoapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = twodos;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -626,7 +628,7 @@
 				CODE_SIGN_ENTITLEMENTS = "WidgetSupport/macos-app.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 61;
 				DEVELOPMENT_TEAM = V2Y9RFPG3D;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -634,6 +636,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = twodos;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationUsageDescription = "twodos watches for the places you pin to a list so a reminder can find you when you arrive or leave.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "twodos uses your location to pin a place to a list, so a reminder can find you when you arrive or leave.";
@@ -641,10 +645,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.6;
-				MARKETING_VERSION = 1.0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 2.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.afzaalahmadzeeshan.ios.twodoapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = twodos;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;

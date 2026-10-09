@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1AC5996830602CE900EEB848"
-               BuildableName = "macos.app"
+               BuildableName = "twodos.app"
                ReferencedContainer = "container:twodos - ios.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,7 +45,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1AC5996830602CE900EEB848"
-            BuildableName = "macos.app"
+            BuildableName = "twodos.app"
             ReferencedContainer = "container:twodos - ios.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1AC5996830602CE900EEB848"
-            BuildableName = "macos.app"
+            BuildableName = "twodos.app"
             ReferencedContainer = "container:twodos - ios.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

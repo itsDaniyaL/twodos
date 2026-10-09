@@ -3,10 +3,10 @@ import AuthenticationServices
 
 /// Continue with Apple, Google or Facebook.
 ///
-/// All three run the same flows as iOS — `ASWebAuthenticationSession` for
-/// Google and Facebook, Apple's own sheet for Apple — and all three work on the
-/// Mac unchanged. The only platform difference is the presentation anchor,
-/// which `SocialSignInService` resolves to an `NSWindow` here.
+/// Google and Facebook run the same flows as iOS in `ASWebAuthenticationSession`.
+/// Apple does not: the Mac's bundle ID is not one the server accepts native
+/// Apple tokens for, so it uses the server's web bridge — see
+/// `SocialAuthConfig.macOffersApple`.
 ///
 /// Which buttons appear is the server's call, read from `client-config`: a
 /// provider with no credentials configured reports itself disabled, and a
@@ -28,14 +28,14 @@ struct MacSocialSignInRow: View {
                     Rectangle().frame(height: 1).foregroundStyle(.quaternary)
                 }
 
-                if config.apple?.enabled == true {
+                if config.macOffersApple {
                     button("Continue with Apple", systemImage: "apple.logo") { await signInWithApple() }
                 }
                 if config.google?.enabled == true {
-                    button("Continue with Google", systemImage: "globe") { await signIn(with: .google) }
+                    button("Continue with Google", image: Image("GoogleLogo")) { await signIn(with: .google) }
                 }
                 if config.facebook?.enabled == true {
-                    button("Continue with Facebook", systemImage: "person.2.fill") { await signIn(with: .facebook) }
+                    button("Continue with Facebook", image: Image("FacebookLogo")) { await signIn(with: .facebook) }
                 }
 
                 if let errorMessage {
@@ -52,17 +52,30 @@ struct MacSocialSignInRow: View {
     /// Nothing to draw when the operator has every provider switched off — the
     /// divider and the "or" would then introduce an empty space.
     private func hasAnyProvider(_ config: SocialAuthConfig) -> Bool {
-        config.apple?.enabled == true
+        config.macOffersApple
             || config.google?.enabled == true
             || config.facebook?.enabled == true
     }
 
-    private func button(_ title: String, systemImage: String, run: @escaping () async -> Void) -> some View {
+    private func button(_ title: LocalizedStringKey, systemImage: String, run: @escaping () async -> Void) -> some View {
+        button(title, image: Image(systemName: systemImage), run: run)
+    }
+
+    /// Google's and Meta's marks are supplied as artwork rather than symbols:
+    /// their colours and geometry are trademarked and must not be approximated.
+    private func button(_ title: LocalizedStringKey, image: Image, run: @escaping () async -> Void) -> some View {
         Button {
             Task { await run() }
         } label: {
-            Label(title, systemImage: systemImage)
-                .frame(maxWidth: .infinity)
+            Label {
+                Text(title)
+            } icon: {
+                image
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+            }
+            .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
         .controlSize(.large)
@@ -79,7 +92,8 @@ struct MacSocialSignInRow: View {
 
     private func signInWithApple() async {
         await authenticate {
-            let result = try await social.appleIdentityToken()
+            guard let config = store.socialAuth else { return }
+            let result = try await social.appleIdentityTokenViaBridge(config: config)
             try await store.signInWithApple(identityToken: result.token, name: result.name)
         }
     }

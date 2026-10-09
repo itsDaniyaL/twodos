@@ -125,6 +125,9 @@ struct MacSidebar: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("twodos")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            MacAccountFooter()
+        }
     }
 
     private func badge(for section: MacSection) -> Int {
@@ -134,5 +137,97 @@ struct MacSidebar: View {
         case .activity: store.unreadNotificationCount
         case .partners: 0
         }
+    }
+}
+
+/// Who is signed in, pinned under the sections, the way Music and the App
+/// Store show the account at the foot of their sidebars.
+///
+/// Settings still lives behind ⌘, — this is the visible way in for anyone who
+/// has not learned that, and clicking your own name opens it on Account.
+struct MacAccountFooter: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.openSettings) private var openSettings
+    @AppStorage(MacSettingsTab.storageKey) private var settingsTab: MacSettingsTab = .general
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                Button {
+                    open(.account)
+                } label: {
+                    HStack(spacing: 8) {
+                        avatar
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(displayName)
+                                .font(.callout.weight(.medium))
+                                .lineLimit(1)
+                            if let detail {
+                                Text(detail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("Your profile and account")
+
+                Button {
+                    open(.general)
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.borderless)
+                .help("Settings (⌘,)")
+                .accessibilityLabel("Settings")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+        }
+    }
+
+    private func open(_ tab: MacSettingsTab) {
+        settingsTab = tab
+        openSettings()
+    }
+
+    private var displayName: String {
+        if let name = store.user?.name, !name.isEmpty { return name }
+        return store.user?.email ?? String(localized: "Account")
+    }
+
+    /// The handle when there is one, otherwise the email — whichever the name
+    /// line is not already showing.
+    private var detail: String? {
+        if let handle = store.user?.handle { return handle }
+        guard let email = store.user?.email, email != displayName else { return nil }
+        return email
+    }
+
+    private var initials: String {
+        let words = displayName.split(separator: " ").prefix(2)
+        return words.compactMap(\.first).map(String.init).joined().uppercased()
+    }
+
+    private var avatar: some View {
+        AsyncImage(url: store.user?.avatarURL) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Circle()
+                .fill(Color.accentColor.opacity(0.18))
+                .overlay {
+                    Text(initials)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+        }
+        .frame(width: 26, height: 26)
+        .clipShape(.circle)
+        .accessibilityHidden(true)
     }
 }

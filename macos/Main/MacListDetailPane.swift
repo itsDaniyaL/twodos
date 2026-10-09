@@ -3,10 +3,9 @@ import PhotosUI
 
 /// The right-hand column: one list's tasks.
 ///
-/// The add field sits at the *top* rather than the bottom. On a phone the
-/// keyboard rises from the bottom and the field rises with it; on a Mac there
-/// is no keyboard to make room for, and the natural place to type is under the
-/// title where the insertion point already is.
+/// The add field sits at the *bottom*, like a message composer, so the tasks
+/// read top-down from the title and a new one appears just above where it was
+/// typed. Its note and attachment strip grow upward from there.
 ///
 /// Everything about the list that is not its tasks lives in the inspector on
 /// the trailing edge (⌥⌘I), which is where a Mac user looks for "settings for
@@ -39,9 +38,6 @@ struct MacListDetailPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            addBar
-            Divider()
-
             if let challenge = store.challenge(for: live.id) {
                 MacChallengeBanner(list: live, challenge: challenge)
                     .padding(.horizontal, MacMetrics.gutter)
@@ -60,7 +56,7 @@ struct MacListDetailPane: View {
                 MacEmptyState(
                     icon: "checkmark.circle",
                     title: "Nothing here yet",
-                    message: "Add the first task above. Whoever you share this with sees it straight away."
+                    message: "Add the first task below. Whoever you share this with sees it straight away."
                 )
             } else if onlyMine && visibleTodos.isEmpty {
                 MacEmptyState(
@@ -73,6 +69,10 @@ struct MacListDetailPane: View {
             } else {
                 taskList
             }
+
+            Divider()
+            addBar
+                .background(.bar)
         }
         .navigationTitle(live.label)
         .navigationSubtitle(subtitle)
@@ -337,6 +337,7 @@ struct MacTodoRow: View {
     var onSetPlace: () -> Void = {}
 
     @State private var titleDraft = ""
+    @State private var isHovered = false
 
     private var isShared: Bool { !list.isEffectivelyPersonal(currentUserId: store.currentUserId) }
     private var assignedToMe: Bool { todo.assigneeId != nil && todo.assigneeId == store.currentUserId }
@@ -399,12 +400,39 @@ struct MacTodoRow: View {
                     .foregroundStyle(Brand.apricot)
                     .help("Part of the running challenge")
             }
+
+            if editingTodoId != todo.id {
+                optionsButton
+            }
         }
         .padding(.vertical, 2)
+        .contentShape(.rect)
+        .onHover { isHovered = $0 }
         // Double-click to rename is the desktop gesture; the context menu
         // carries everything the iOS swipe and long-press offer.
         .onTapGesture(count: 2) { beginRename() }
         .contextMenu { contextMenu }
+    }
+
+    /// The right-click menu, made visible. A context menu alone left people
+    /// believing the Mac could not assign, date or pin a task at all — nothing
+    /// on screen said the options existed.
+    ///
+    /// Shown on hover so a long list does not carry a column of identical
+    /// buttons, but faded rather than removed, so VoiceOver and keyboard
+    /// navigation still reach it on every row.
+    private var optionsButton: some View {
+        Menu {
+            contextMenu
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .opacity(isHovered ? 1 : 0)
+        .help("Task options")
+        .accessibilityLabel("Task options")
     }
 
     @ViewBuilder

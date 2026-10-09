@@ -68,14 +68,22 @@ struct SocialSignInButtons: View {
             }
 
         case .facebook:
+            // The neutral surface Google's button uses: Meta's blue circle
+            // mark is made for a light or dark surface, and on a blue fill it
+            // would disappear into the button.
             SocialButton(
                 title: "Continue with Facebook",
-                foreground: .white,
-                background: Color(red: 0.10, green: 0.35, blue: 0.85),
-                border: .clear
+                foreground: Color(light: 0x1F1F1F, dark: 0xE3E3E3),
+                background: Color(light: 0xFFFFFF, dark: 0x131314),
+                border: Color(light: 0xDADCE0, dark: 0x8E918F)
             ) {
-                FacebookMark()
+                // Supplied as artwork for the same reason as Google's: the
+                // mark's gradient and geometry belong to Meta.
+                Image("FacebookLogo")
+                    .resizable()
+                    .scaledToFit()
                     .frame(width: 20, height: 20)
+                    .accessibilityHidden(true)
             } action: {
                 onProvider(.facebook)
             }
@@ -121,20 +129,6 @@ private struct SocialButton<Mark: View>: View {
         .buttonStyle(.plain)
         // The mark is decorative once the label says the same thing.
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// Meta's "f" drawn as a glyph rather than shipped as artwork.
-///
-/// Unlike Google's mark this is a single letterform in a single colour, which
-/// the system font reproduces faithfully at button size — so it costs no asset
-/// and stays crisp at any scale.
-private struct FacebookMark: View {
-    var body: some View {
-        Text(verbatim: "f")
-            .font(.system(size: 22, weight: .black, design: .rounded))
-            .foregroundStyle(.white)
-            .accessibilityHidden(true)
     }
 }
 
