@@ -338,6 +338,33 @@ actor APIClient {
 
     // MARK: - Token refresh
 
+    /// An access token that is good *now*, for a caller that is not making an
+    /// HTTP request — the socket, which authenticates once per connection and
+    /// so cannot lean on the 401-and-retry path in `perform`.
+    ///
+    /// `rejected` is the token the server just refused. It forces a renewal
+    /// the expiry window cannot see — but only while that token is still the
+    /// current one. If a REST call has already rotated it, the fresh token is
+    /// simply returned: renewing again would spend a refresh for nothing.
+    /// Either way the renewal goes through `refreshIfPossible`, so it can never
+    /// overlap another one.
+    ///
+    /// Nil when there is nothing usable: signed out, or a renewal the server
+    /// turned down.
+    func freshAccessToken(rejecting rejected: String? = nil) async -> String? {
+        if let injectedToken { return injectedToken }
+        let current = await TokenStore.shared.accessToken
+        let wasRejected = rejected != nil && rejected == current
+        if wasRejected || (await TokenStore.shared.accessTokenNeedsRefresh()) {
+            guard await refreshIfPossible() else {
+                // A token the server refused will be refused again; one that is
+                // merely close to expiry is still worth presenting.
+                return wasRejected ? nil : current
+            }
+        }
+        return await TokenStore.shared.accessToken
+    }
+
     /// Runs at most one refresh at a time; concurrent callers share the result.
     ///
     /// The de-duplication only works if `refreshTask` is published *before* the

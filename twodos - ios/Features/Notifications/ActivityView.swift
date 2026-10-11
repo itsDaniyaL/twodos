@@ -49,6 +49,7 @@ struct ActivityView: View {
                 title: "Nothing yet",
                 message: "Invitations, alarms, and changes your partner makes will show up here."
             )
+            .pullable()
         } else {
             ScrollView {
                 LazyVStack(spacing: 14, pinnedViews: [.sectionHeaders]) {

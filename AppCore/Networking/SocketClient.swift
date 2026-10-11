@@ -25,54 +25,144 @@ import OSLog
 /// So a list update arrives as the text frame:
 /// `42["LIST::ITEM_ADDED",{"listId":"…","actorId":"…"}]`
 ///
+/// ## Authentication, and why the token is fetched rather than remembered
+/// `connect` takes a provider, not a token. Access tokens live one hour and the
+/// socket authenticates once per connection, so a string held from sign-in is
+/// expired by the first reconnect an hour later. The server refuses it, and an
+/// earlier version answered that refusal by reconnecting at once with the same
+/// string — a tight loop of rejected handshakes, while collaboration silently
+/// stopped. Asking for a token per attempt, and telling the provider which one
+/// was refused, is what lets a reconnect succeed.
+///
 /// ## Reconnection
 /// Exponential backoff with jitter, capped at 30s, reset on a successful
-/// connect. The socket is a nice-to-have — every event it delivers can also be
-/// recovered by a pull-to-refresh — so it never blocks the UI or surfaces an
-/// error, it just quietly keeps trying.
+/// connect. ``reconnectNow()`` jumps the queue for the two cases where waiting
+/// is pointless because something just changed for the better: the app came to
+/// the foreground, or the network came back.
+///
+/// The socket is a nice-to-have — every event it delivers can also be
+/// recovered by a refresh — so it never blocks the UI or surfaces an error, it
+/// just quietly keeps trying. Events sent while it was down are not replayed by
+/// the server, which is why a *resumed* connection is reported separately: it is
+/// the owner's cue to re-read everything.
 actor SocketClient {
     static let shared = SocketClient()
+
+    /// Supplies a token to authenticate with. The argument is the token the
+    /// server just refused, if any — "do not hand me this one again".
+    typealias TokenProvider = @Sendable (_ rejected: String?) async -> String?
 
     private let logger = Logger(subsystem: "app.twodos", category: "socket")
 
     private var task: URLSessionWebSocketTask?
     private var session: URLSession?
-    private var token: String?
+    private var tokenProvider: TokenProvider?
     private var pingTimeoutTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
     private var reconnectAttempt = 0
     private var isStopped = true
+    /// Retrying is suspended while the app is in the background. Distinct from
+    /// `isStopped`, which means signed out: a paused socket is still wanted and
+    /// comes back on ``reconnectNow()``.
+    private var isPaused = false
     private var handler: (@Sendable (SocketEvent) -> Void)?
+
+    /// Which connection attempt is current. A replaced socket still delivers
+    /// its receive failure afterwards; without this, that late failure
+    /// schedules a reconnect on top of the live one.
+    private var generation = 0
+    /// The token the current attempt authenticated with, so a refusal can name it.
+    private var currentToken: String?
+    /// Set when a handshake is refused, so the next attempt renews the token.
+    private var rejectedToken: String?
+    /// Consecutive refused handshakes. A session the server will not accept
+    /// even with a renewed token is not going to start working on a timer.
+    private var authFailures = 0
+    private static let maxAuthFailures = 3
+    /// Whether this session has ever completed a handshake — drives `.resumed`.
+    private var hasConnectedBefore = false
+    private var isHandshakeComplete = false
+    /// When the last frame of any kind arrived. A socket the app was suspended
+    /// under looks connected and is usually dead; this is how to tell.
+    private var lastFrameAt: Date = .distantPast
+    /// When the current attempt began, while it has not yet completed its
+    /// handshake. Launch connects and the foreground callback lands a moment
+    /// later; without this the second would throw away the first mid-handshake.
+    private var attemptStartedAt: Date?
 
     private init() {}
 
     // MARK: - Lifecycle
 
     /// Opens the connection and begins delivering events to `handler`.
-    func connect(token: String, handler: @escaping @Sendable (SocketEvent) -> Void) {
-        self.token = token
+    func connect(tokenProvider: @escaping TokenProvider, handler: @escaping @Sendable (SocketEvent) -> Void) {
+        self.tokenProvider = tokenProvider
         self.handler = handler
         isStopped = false
+        isPaused = false
         reconnectAttempt = 0
-        openSocket()
+        authFailures = 0
+        rejectedToken = nil
+        hasConnectedBefore = false
+        reopen()
     }
 
-    /// Swaps in a freshly refreshed token. The server validates the token during
-    /// the handshake, so the only way to apply a new one is a full reconnect.
-    func reconnect(token: String) {
+    /// Whether a session has asked for a socket. False while signed out, and
+    /// before the first ``connect(tokenProvider:handler:)`` of an offline launch.
+    var isStarted: Bool { !isStopped }
+
+    /// Reconnects now rather than when the backoff expires.
+    ///
+    /// A connection that is demonstrably alive — a frame arrived within the
+    /// heartbeat window — is left alone, so calling this on every foreground or
+    /// network change costs nothing when nothing is wrong.
+    ///
+    /// `unpausing: false` is for triggers that can fire while the app is in
+    /// the background — a network change during a geofence wake, say — and
+    /// must not undo ``pause()``.
+    func reconnectNow(unpausing: Bool = true) {
         guard !isStopped else { return }
-        self.token = token
+        if isPaused, !unpausing { return }
+        isPaused = false
+        if isHandshakeComplete, Date.now.timeIntervalSince(lastFrameAt) < pingDeadline {
+            return
+        }
+        if !isHandshakeComplete, let attemptStartedAt, Date.now.timeIntervalSince(attemptStartedAt) < 10 {
+            return
+        }
+        reconnectAttempt = 0
+        // Something just changed for the better; a session refused three times
+        // earlier deserves one more try now.
+        authFailures = 0
+        reopen()
+    }
+
+    /// Lets the connection go while the app is in the background, without
+    /// ending the session. iOS suspends the process anyway; what this prevents
+    /// is a backoff timer firing on the way back and racing ``reconnectNow()``.
+    func pause() {
+        guard !isStopped else { return }
+        isPaused = true
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        if isHandshakeComplete { handler?(.connectionChanged(false)) }
         teardown()
-        openSocket()
     }
 
     func disconnect() {
         isStopped = true
         handler = nil
+        tokenProvider = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
         teardown()
         logger.info("Disconnected.")
     }
 
     private func teardown() {
+        generation += 1
+        isHandshakeComplete = false
+        attemptStartedAt = nil
         pingTimeoutTask?.cancel()
         pingTimeoutTask = nil
         task?.cancel(with: .goingAway, reason: nil)
@@ -83,8 +173,29 @@ actor SocketClient {
 
     // MARK: - Connection
 
-    private func openSocket() {
-        guard !isStopped, let token else { return }
+    /// Drops whatever is there and starts a fresh attempt.
+    private func reopen() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        teardown()
+        attemptStartedAt = .now
+        let attempt = generation
+        Task { await self.openSocket(attempt: attempt) }
+    }
+
+    private func openSocket(attempt: Int) async {
+        guard !isStopped, !isPaused, attempt == generation, let tokenProvider else { return }
+
+        let token = await tokenProvider(rejectedToken)
+        // The provider may have refreshed over the network; the world can have
+        // moved on in the meantime.
+        guard !isStopped, !isPaused, attempt == generation else { return }
+        guard let token else {
+            logger.info("No usable token; waiting.")
+            scheduleReconnect()
+            return
+        }
+        currentToken = token
 
         var components = URLComponents(url: APIClient.baseURL, resolvingAgainstBaseURL: false)!
         components.scheme = components.scheme == "https" ? "wss" : "ws"
@@ -110,37 +221,39 @@ actor SocketClient {
         // expects the bare token — no "Bearer" prefix.
         send(raw: "40" + (jsonString(["token": token]) ?? "{}"))
 
-        Task { await self.receiveLoop() }
+        Task { await self.receiveLoop(attempt: attempt) }
     }
 
     private func scheduleReconnect() {
-        guard !isStopped else { return }
+        guard !isStopped, !isPaused else { return }
         reconnectAttempt += 1
         let base = min(pow(1.6, Double(reconnectAttempt)), 30)
         let jitter = Double.random(in: 0...0.4) * base
         let delay = min(base + jitter, 30)
         logger.info("Reconnecting in \(String(format: "%.1f", delay))s (attempt \(self.reconnectAttempt))")
 
-        Task { [weak self] in
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            guard let self else { return }
+            guard !Task.isCancelled, let self else { return }
             await self.reopenIfNeeded()
         }
     }
 
     private func reopenIfNeeded() {
-        guard !isStopped else { return }
-        teardown()
-        openSocket()
+        guard !isStopped, !isPaused else { return }
+        reopen()
     }
 
     // MARK: - Receiving
 
-    private func receiveLoop() async {
-        guard let task else { return }
+    private func receiveLoop(attempt: Int) async {
+        guard let task, attempt == generation else { return }
         do {
-            while !isStopped {
+            while !isStopped, attempt == generation {
                 let message = try await task.receive()
+                guard attempt == generation else { return }
+                lastFrameAt = .now
                 switch message {
                 case .string(let text):
                     handle(frame: text)
@@ -151,9 +264,12 @@ actor SocketClient {
                 }
             }
         } catch {
-            guard !isStopped else { return }
+            // A socket that was replaced or paused fails on its way out; that
+            // failure is not news.
+            guard !isStopped, !isPaused, attempt == generation else { return }
             logger.warning("Receive failed: \(error.localizedDescription)")
             handler?(.connectionChanged(false))
+            teardown()
             scheduleReconnect()
         }
     }
@@ -203,7 +319,7 @@ actor SocketClient {
     }
 
     private func handlePingTimeout() {
-        guard !isStopped else { return }
+        guard !isStopped, !isPaused else { return }
         logger.warning("Heartbeat lost — reconnecting.")
         handler?(.connectionChanged(false))
         teardown()
@@ -217,8 +333,15 @@ actor SocketClient {
         switch first {
         case "0": // CONNECT acknowledged
             reconnectAttempt = 0
+            authFailures = 0
+            rejectedToken = nil
+            isHandshakeComplete = true
             logger.info("Connected.")
             handler?(.connectionChanged(true))
+            // See the type note: the server did not queue anything for us
+            // while we were away, so a second connection means an unknown gap.
+            if hasConnectedBefore { handler?(.resumed) }
+            hasConnectedBefore = true
 
         case "2": // EVENT
             decodeEvent(rest)
@@ -232,8 +355,17 @@ actor SocketClient {
         case "4": // CONNECT_ERROR — usually an expired token
             logger.warning("Connect rejected: \(rest, privacy: .public)")
             handler?(.connectionChanged(false))
-            handler?(.authRejected)
             teardown()
+            // The next attempt asks for a renewed token rather than presenting
+            // this one again. Backed off like any other failure, and abandoned
+            // after a few — until `reconnectNow` says something has changed.
+            rejectedToken = currentToken
+            authFailures += 1
+            if authFailures < Self.maxAuthFailures {
+                scheduleReconnect()
+            } else {
+                logger.warning("Handshake refused \(self.authFailures) times; waiting for the app to return.")
+            }
 
         default:
             break
@@ -288,7 +420,9 @@ actor SocketClient {
 /// re-fetching would make the user's own edit flicker.
 enum SocketEvent: Sendable {
     case connectionChanged(Bool)
-    case authRejected
+    /// A connection replacing an earlier one. Events broadcast in between were
+    /// not queued for us, so whatever they would have said has to be re-read.
+    case resumed
 
     case notification([String: String])
     case listUpdated(listId: String, actorId: String?)

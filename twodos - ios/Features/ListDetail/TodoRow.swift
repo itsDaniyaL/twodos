@@ -43,10 +43,13 @@ struct TodoRow: View {
     var onAttachments: (() -> Void)?
     /// Ticking this one scores a point in the list's running challenge.
     var isInChallenge: Bool = false
+    /// One step up or down among the open items. Nil where there is no step to
+    /// take — the first or last row, a done item, or a filtered view.
+    var onMoveUp: (() -> Void)?
+    var onMoveDown: (() -> Void)?
     let onDelete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isPressed = false
 
     var body: some View {
         // Two actions, not five. The long-press menu carries everything —
@@ -99,11 +102,11 @@ struct TodoRow: View {
         .onTapGesture {
             onToggle()
         }
-        .scaleEffect(isPressed ? 0.985 : 1)
-        .motion(Motion.tap, value: isPressed)
-        .onLongPressGesture(minimumDuration: 0.01, pressing: { pressing in
-            isPressed = pressing
-        }, perform: {})
+        // No hand-rolled press effect. It was a 0.01-second long-press on every
+        // row, which claims each touch the moment it lands — so a pull that
+        // started on a row (which on a full list is every pull) never reached
+        // the scroll view, and pull-to-refresh looked absent. The interactive
+        // glass already answers a press, natively and without the conflict.
         .contextMenu {
             Button(action: onToggle) {
                 Label(todo.done ? "Mark as not done" : "Mark as done",
@@ -151,6 +154,18 @@ struct TodoRow: View {
                     Label("Who's doing this?", systemImage: "person.crop.circle.badge.checkmark")
                 }
             }
+            // The same reorder a drag makes, for a keyboard, a pointer, or
+            // anyone who would rather not drag.
+            if onMoveUp != nil || onMoveDown != nil {
+                Section {
+                    if let onMoveUp {
+                        Button(action: onMoveUp) { Label("Move up", systemImage: "arrow.up") }
+                    }
+                    if let onMoveDown {
+                        Button(action: onMoveDown) { Label("Move down", systemImage: "arrow.down") }
+                    }
+                }
+            }
             Divider()
             Button(role: .destructive, action: onDelete) {
                 Label("Delete", systemImage: "trash")
@@ -170,6 +185,8 @@ struct TodoRow: View {
                 Button("You do it") { onAssign(.partner) }
             }
             if let onAttachments { Button("Attachments", action: onAttachments) }
+            if let onMoveUp { Button("Move up", action: onMoveUp) }
+            if let onMoveDown { Button("Move down", action: onMoveDown) }
             Button("Delete", action: onDelete)
         }
     }

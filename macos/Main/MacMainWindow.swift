@@ -19,6 +19,9 @@ struct MacMainWindow: View {
     @State private var query = ""
     @State private var isCreatingList = false
     @State private var columnVisibility = NavigationSplitViewVisibility.all
+    /// Set only by Refresh, never by the store's background refreshes, so the
+    /// toolbar spins for the thing the user asked for and nothing else.
+    @State private var isRefreshingWindow = false
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -44,18 +47,16 @@ struct MacMainWindow: View {
                 }
                 .help("New list (⌘N)")
 
-                Button { Task { await store.refreshAll() } } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .help("Refresh (⌘R)")
-                .disabled(store.isRefreshing)
+                Button { Task { await refreshVisible() } } label: { refreshLabel }
+                    .help("Refresh (⌘R)")
+                    .disabled(isRefreshingWindow)
             }
         }
         .sheet(isPresented: $isCreatingList) { MacNewListSheet() }
         // The menu bar talks to the window through counters rather than
         // focused values — see `MacCommands` for why.
         .onChange(of: commands.newListRequests) { _, _ in isCreatingList = true }
-        .onChange(of: commands.refreshRequests) { _, _ in Task { await store.refreshAll() } }
+        .onChange(of: commands.refreshRequests) { _, _ in Task { await refreshVisible() } }
         .onChange(of: commands.focusSearchRequests) { _, _ in searchFocused = true }
         .onChange(of: commands.sectionRequest) { _, request in
             guard let request else { return }
@@ -70,6 +71,50 @@ struct MacMainWindow: View {
             selectedListId = id
             store.pendingListToOpen = nil
         }
+    }
+
+    /// A small spinner in the button's own place while it works, the way
+    /// Mail's Get Mail button does — a greyed-out arrow alone does not say
+    /// anything is happening.
+    @ViewBuilder
+    private var refreshLabel: some View {
+        if isRefreshingWindow {
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Refreshing")
+        } else {
+            Label("Refresh", systemImage: "arrow.clockwise")
+        }
+    }
+
+    /// Refreshes what the window is showing, the way ⌘R does in Mail.
+    ///
+    /// `refreshAll` covers lists, partners, the activity feed and sent
+    /// invites — but not alarms, blocked people, or the challenge on the open
+    /// list, so the section on screen decides what comes along with it. iOS's
+    /// ⌘R makes the same choice per tab.
+    private func refreshVisible() async {
+        guard !isRefreshingWindow else { return }
+        isRefreshingWindow = true
+        defer { isRefreshingWindow = false }
+
+        async let everything: Void = store.refreshAll()
+        switch section {
+        case .alarms:
+            await store.refreshAlarms()
+        case .partners:
+            await store.refreshBlockedUsers()
+        case .lists:
+            if let id = selectedListId {
+                // Errors reported for the open list: this refresh was asked for.
+                async let items: Void = store.refreshList(id: id, reportErrors: true)
+                async let challenge: Void = store.refreshChallenge(listId: id)
+                _ = await (items, challenge)
+            }
+        case .activity, nil:
+            break
+        }
+        await everything
     }
 
     @ViewBuilder

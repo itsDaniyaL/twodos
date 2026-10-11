@@ -424,6 +424,30 @@ struct InlineBanner: View {
     }
 }
 
+// MARK: - Pullable
+
+extension View {
+    /// Lets pull-to-refresh reach a view that has no scroll of its own.
+    ///
+    /// `.refreshable` is driven by a scroll view, so an empty state — a plain
+    /// stack — simply ignored the pull. That is precisely the screen someone is
+    /// most likely to pull on: an empty list is what a stale fetch looks like,
+    /// and "there is nothing here" is the claim most worth re-checking.
+    ///
+    /// The content is held at the full height of the space, so it stays
+    /// centred and the whole screen answers the gesture, not just the strip
+    /// the content happens to occupy. The `.refreshable` itself still comes
+    /// from whichever ancestor declares it.
+    func pullable() -> some View {
+        GeometryReader { proxy in
+            ScrollView {
+                self.frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.always, axes: .vertical)
+        }
+    }
+}
+
 // MARK: - Loading
 
 /// A full-screen loading state. Uses a shaped, branded indicator rather than a

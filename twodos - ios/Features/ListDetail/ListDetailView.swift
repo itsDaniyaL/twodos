@@ -45,6 +45,9 @@ struct ListDetailView: View {
     /// "Just my tasks". Offered once you have taken something on, because
     /// until then there is nothing for it to narrow to.
     @State private var onlyMine = false
+    /// The open row a dragged item is hovering over, drawn with a marker so
+    /// the drop has a visible destination.
+    @State private var dropTargetId: String?
     /// Files queued for the item being typed, uploaded once it exists.
     @State private var draftAttachments: [AttachmentDraft] = []
     @State private var newPhotoItems: [PhotosPickerItem] = []
@@ -91,14 +94,29 @@ struct ListDetailView: View {
         // You and Search for as long as a list was showing.
         .toolbar(sizeClass == .compact ? .hidden : .automatic, for: .tabBar)
         .toolbar { toolbar }
-        .refreshable { await store.refreshList(id: listId) }
+        // The banner and the names on the rows can be as stale as the rows
+        // themselves, so a pull brings all three up to date.
+        .refreshable {
+            async let items: Void = store.refreshList(id: listId, reportErrors: true)
+            async let challenge: Void = store.refreshChallenge(listId: listId)
+            async let partners: Void = store.refreshPartners()
+            _ = await (items, challenge, partners)
+        }
         .sheet(isPresented: $showingOptions) { ListOptionsSheet(listId: listId) }
         .sheet(isPresented: $showingInfo) { ListInfoSheet(listId: listId) }
         .sheet(isPresented: $showingChallenge) { ChallengeSheet(listId: listId) }
         // Separate from the list's own load: the scoreboard has its own endpoint
         // and its own socket event, so folding it in would mean refetching every
         // item to learn two integers.
-        .task(id: listId) { await store.refreshChallenge(listId: listId) }
+        //
+        // The list itself is read on the way in as well. Its rows otherwise come
+        // from whatever the last full load cached — so a list opened from a
+        // notification showed the state from before the change it announced.
+        .task(id: listId) {
+            async let items: Void = store.refreshList(id: listId)
+            async let challenge: Void = store.refreshChallenge(listId: listId)
+            _ = await (items, challenge)
+        }
         .environment(\.swipeCoordinator, swipeCoordinator)
         .sheet(item: $locationTodo) { todo in
             LocationPickerView(listId: listId, todo: todo)
@@ -356,7 +374,13 @@ struct ListDetailView: View {
     }
 
     @ViewBuilder
-    private func row(for todo: Todo, in list: TodoList, done: Bool) -> some View {
+    private func row(
+        for todo: Todo,
+        in list: TodoList,
+        done: Bool,
+        onMoveUp: (() -> Void)? = nil,
+        onMoveDown: (() -> Void)? = nil
+    ) -> some View {
         let shared = !list.isEffectivelyPersonal(currentUserId: store.currentUserId)
         let takesMedia = list.mediaAllowance?.enabled == true
         TodoRow(
@@ -378,6 +402,8 @@ struct ListDetailView: View {
                 ? { editFocus = .attachments; editingTodo = todo }
                 : nil,
             isInChallenge: done ? false : isInChallenge(todo),
+            onMoveUp: onMoveUp,
+            onMoveDown: onMoveDown,
             onDelete: { Task { await store.deleteTodo(listId: listId, todoId: todo.id) } }
         )
     }
@@ -386,11 +412,27 @@ struct ListDetailView: View {
     private func openItems(for list: TodoList) -> some View {
         let open = visibleTodos(in: list).filter { !$0.done }
         if !open.isEmpty {
-            ForEach(open) { todo in
-                row(for: todo, in: list, done: false)
-                    .transition(.rowInsertion)
+            ForEach(Array(open.enumerated()), id: \.element.id) { index, todo in
+                let reorderable = canReorder(list)
+                let moveUp: (() -> Void)? = reorderable && index > 0
+                    ? { Task { await store.moveTodo(listId: listId, todoId: todo.id, by: -1) } }
+                    : nil
+                let moveDown: (() -> Void)? = reorderable && index < open.count - 1
+                    ? { Task { await store.moveTodo(listId: listId, todoId: todo.id, by: 1) } }
+                    : nil
+                row(for: todo, in: list, done: false, onMoveUp: moveUp, onMoveDown: moveDown)
+                .transition(.rowInsertion)
+                .reorderable(todo: todo, enabled: reorderable, dropTarget: $dropTargetId) { draggedId in
+                    Task { await store.moveTodo(listId: listId, todoId: draggedId, to: todo.id) }
+                }
             }
         }
+    }
+
+    /// Reordering a filtered view would scramble the tasks that are hidden, and
+    /// an archived list is read-only — so both turn it off, as on the Mac.
+    private func canReorder(_ list: TodoList) -> Bool {
+        !onlyMine && !list.archived
     }
 
     /// Whether ticking this one scores a point.

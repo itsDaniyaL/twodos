@@ -85,6 +85,7 @@ struct PartnersView: View {
                 title: "No partners yet",
                 message: "Share a list with someone and they'll appear here. You can block or report anyone from this screen."
             )
+            .pullable()
         } else {
             ScrollView {
                 LazyVStack(spacing: 16) {

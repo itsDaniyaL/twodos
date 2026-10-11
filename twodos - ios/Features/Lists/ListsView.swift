@@ -127,6 +127,10 @@ struct ListsView: View {
                 actionTitle: "Create your first list",
                 action: { showingCreateSheet = true }
             )
+            // Pullable like the list it stands in for: "nothing here" is the
+            // answer someone most wants to re-check.
+            .pullable()
+            .refreshable { await store.refreshAll() }
         } else {
             listScroll
         }

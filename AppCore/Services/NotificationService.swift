@@ -37,6 +37,10 @@ final class NotificationService: NSObject {
     var onSnoozeAlarm: ((_ alarmId: String, _ minutes: Int) -> Void)?
     /// Set by the app so the "Mark done" action can reach the API.
     var onCompleteTodo: ((_ listId: String, _ todoId: String) -> Void)?
+    /// A remote push arrived while the app is in front. The owner re-reads
+    /// whatever it implies has changed, and answers whether a banner is still
+    /// worth showing. Set by `AppStore`.
+    var onForegroundPush: ((_ payload: [String: String]) -> Bool)?
 
     var isAuthorized: Bool { authorization == .authorized || authorization == .provisional }
     var isDenied: Bool { authorization == .denied }
@@ -268,9 +272,15 @@ final class NotificationService: NSObject {
     // MARK: - Stable identifiers
 
     /// Deterministic ids so a reschedule replaces rather than duplicates.
-    static func deadlineID(listId: String) -> String { "list.deadline.\(listId)" }
-    static func todoDeadlineID(listId: String, todoId: String) -> String { "todo.deadline.\(listId).\(todoId)" }
-    static func alarmID(_ alarmId: String) -> String { "alarm.\(alarmId)" }
+    ///
+    /// The prefixes are what lets a reconcile find requests for things that no
+    /// longer exist — see `AppStore.reconcileAlarmNotifications`.
+    static let deadlinePrefix = "list.deadline."
+    static let todoDeadlinePrefix = "todo.deadline."
+    static let alarmPrefix = "alarm."
+    static func deadlineID(listId: String) -> String { deadlinePrefix + listId }
+    static func todoDeadlineID(listId: String, todoId: String) -> String { "\(todoDeadlinePrefix)\(listId).\(todoId)" }
+    static func alarmID(_ alarmId: String) -> String { alarmPrefix + alarmId }
     static func geofenceID(listId: String) -> String { "geofence.\(listId)" }
 }
 
@@ -287,11 +297,34 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        let showInForeground = await MainActor.run {
-            NotificationSettingsStore.shared.showWhileUsingApp
+        // A push is the server saying "something changed". Seen from the
+        // foreground, the change has to reach the screen too — or the user
+        // gets a banner about a tick over a list still showing it unticked,
+        // whenever the socket that would have said so is down.
+        let isRemote = notification.request.trigger is UNPushNotificationTrigger
+        let payload = isRemote ? Self.stringPayload(notification.request.content.userInfo) : [:]
+
+        let (showInForeground, worthShowing) = await MainActor.run {
+            let worth = isRemote ? (self.onForegroundPush?(payload) ?? true) : true
+            return (NotificationSettingsStore.shared.showWhileUsingApp, worth)
         }
-        guard showInForeground else { return [] }
+        guard showInForeground, worthShowing else { return [] }
         return [.banner, .sound, .list]
+    }
+
+    /// The push's custom keys as strings. The server flattens the
+    /// notification's `data` into the top level beside `aps`.
+    private nonisolated static func stringPayload(_ userInfo: [AnyHashable: Any]) -> [String: String] {
+        var result: [String: String] = [:]
+        for (key, value) in userInfo {
+            guard let key = key as? String, key != "aps" else { continue }
+            switch value {
+            case let string as String: result[key] = string
+            case let number as NSNumber: result[key] = number.stringValue
+            default: continue
+            }
+        }
+        return result
     }
 
     nonisolated func userNotificationCenter(

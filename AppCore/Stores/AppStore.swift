@@ -289,11 +289,17 @@ final class AppStore {
         notifications.onCompleteTodo = { [weak self] listId, todoId in
             Task { await self?.setTodo(listId: listId, todoId: todoId, done: true) }
         }
+        notifications.onForegroundPush = { [weak self] payload in
+            self?.handleForegroundPush(payload) ?? true
+        }
         location.onCrossing = { [weak self] crossing in
             Task { await self?.handleGeofenceCrossing(crossing) }
         }
         location.onNeedsResync = { [weak self] in
-            guard let self else { return }
+            // Before the first load `lists` is empty, and syncing against that
+            // would take down every fence restored from disk. The load itself
+            // syncs once it lands.
+            guard let self, self.hasLoadedLists else { return }
             Task { await self.location.syncGeofences(from: self.lists, currentUserId: self.currentUserId) }
         }
 
@@ -311,6 +317,14 @@ final class AppStore {
                 }
             }
         }
+
+        // A network coming back is a reason to reconnect now rather than when
+        // the backoff expires. Only the socket is nudged: if it really was
+        // down, its reconnection reports `.resumed` and the catch-up follows.
+        NetworkMonitor.shared.onNetworkAvailable = { [weak self] in
+            Task { await self?.resumeRealtime(fromForeground: false) }
+        }
+        NetworkMonitor.shared.start()
 
         // The watch can ask for a session directly when it launches cold.
         watch.currentPayload = { [weak self] in self?.watchPayload() ?? [:] }
@@ -436,10 +450,55 @@ final class AppStore {
     func handleForeground() async {
         await notifications.refreshAuthorization()
         guard phase == .signedIn else { return }
-        if !isSocketConnected { await connectSocket() }
+        // An offline launch signs in optimistically with no identity and no
+        // socket. This is the moment that becomes fixable — and without a user
+        // id the socket cannot recognise its own echoes.
+        if user == nil { await refreshUser() }
+        await resumeRealtime()
         // Before the refresh, so a replayed tick is not immediately overwritten
         // by the server's older view of that item.
         await replayPendingMutations()
+        await catchUp(force: true)
+    }
+
+    /// Called when the app leaves the screen. See `SocketClient.pause()`.
+    func handleBackground() async {
+        await SocketClient.shared.pause()
+    }
+
+    /// Brings the socket back after the app or the network went away.
+    ///
+    /// `isSocketConnected` is not trusted here: a socket the app was suspended
+    /// under still reads as connected and is usually dead. `reconnectNow`
+    /// checks for itself, and leaves a live connection alone.
+    ///
+    /// `fromForeground` is false for triggers that are not the app coming to
+    /// the front, which must not wake a socket that was deliberately paused.
+    func resumeRealtime(fromForeground: Bool = true) async {
+        guard phase == .signedIn else { return }
+        if await SocketClient.shared.isStarted {
+            await SocketClient.shared.reconnectNow(unpausing: fromForeground)
+        } else if fromForeground {
+            await connectSocket()
+        }
+    }
+
+    /// When the last catch-up refresh started. See `catchUp(force:)`.
+    @ObservationIgnored private var lastCatchUpAt: Date = .distantPast
+
+    /// Re-reads what socket events would have told us.
+    ///
+    /// The triggers overlap by design — a foreground return, a network change
+    /// and the socket's own reconnection can all land within a second of each
+    /// other, each correctly believing a catch-up is due — so they collapse
+    /// into one. `force` is for the foreground, which always deserves a fresh
+    /// look; it still resets the clock so the reconnection right behind it
+    /// does not fetch everything a second time.
+    private func catchUp(force: Bool = false) async {
+        guard phase == .signedIn else { return }
+        let now = Date.now
+        if !force, now.timeIntervalSince(lastCatchUpAt) < 5 { return }
+        lastCatchUpAt = now
         await refreshAll(silently: true)
     }
 
@@ -651,7 +710,11 @@ final class AppStore {
 
     /// Refreshes one list. Used by socket events and pull-to-refresh on a
     /// detail screen — much cheaper than re-fetching everything.
-    func refreshList(id: String) async {
+    ///
+    /// `reportErrors` is for a refresh the user asked for. The automatic ones
+    /// stay silent — nobody can act on a failure they did not cause — but a
+    /// pull that fails quietly reads as the gesture not working.
+    func refreshList(id: String, reportErrors: Bool = false) async {
         do {
             let fetched = try await api.list(id: id)
             if let index = lists.firstIndex(where: { $0.id == id }) {
@@ -674,6 +737,7 @@ final class AppStore {
             lists.removeAll { $0.id == id }
         } catch {
             logger.debug("refreshList(\(id, privacy: .public)) failed: \(error.localizedDescription)")
+            if reportErrors { report(error, whileDoing: "refreshing this list") }
         }
     }
 
@@ -1360,22 +1424,57 @@ final class AppStore {
         )
     }
 
-    /// Persists a drag-reorder. The local array is already in its new order;
-    /// this writes each moved item's index back to the server.
+    /// Persists a reorder of a list's open items.
+    ///
+    /// `todos` is the open items in their new order. They are applied locally
+    /// first, so the row stays where it was dropped: the comment here used to
+    /// say the local array was "already in its new order", but no caller put it
+    /// there, and on the Mac a dragged row snapped back to its old slot until
+    /// the server's answer arrived. Done items keep their place behind them.
     func persistOrder(listId: String, todos: [Todo]) async {
         guard let listIndex = lists.firstIndex(where: { $0.id == listId }) else { return }
         let previous = lists[listIndex].todos
+        let moved = Set(todos.map(\.id))
+        lists[listIndex].todos = todos + previous.filter { !moved.contains($0.id) }
+        syncExternalSurfaces()
 
         for (offset, todo) in todos.enumerated() where todo.order != offset {
             do {
                 _ = try await api.reorderTodo(listId: listId, todoId: todo.id, order: offset)
             } catch {
-                lists[listIndex].todos = previous
+                // Re-found rather than reusing `listIndex`: the array may have
+                // changed under the awaits above.
+                if let index = lists.firstIndex(where: { $0.id == listId }) {
+                    lists[index].todos = previous
+                }
+                syncExternalSurfaces()
                 report(error, whileDoing: "reordering")
                 return
             }
         }
         await refreshList(id: listId)
+    }
+
+    /// Moves one open item to where another one is, the way a drop does: onto a
+    /// row below, it lands after it; onto a row above, before it.
+    func moveTodo(listId: String, todoId: String, to targetId: String) async {
+        guard todoId != targetId, let list = list(id: listId) else { return }
+        var open = list.todos.filter { !$0.done }
+        guard let from = open.firstIndex(where: { $0.id == todoId }),
+              let to = open.firstIndex(where: { $0.id == targetId }) else { return }
+        open.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to)
+        Haptics.selection()
+        await persistOrder(listId: listId, todos: open)
+    }
+
+    /// One step up (negative) or down (positive) among the open items. The
+    /// keyboard and VoiceOver route to the same reorder a drag makes.
+    func moveTodo(listId: String, todoId: String, by step: Int) async {
+        guard let list = list(id: listId) else { return }
+        let open = list.todos.filter { !$0.done }
+        guard let from = open.firstIndex(where: { $0.id == todoId }),
+              open.indices.contains(from + step) else { return }
+        await moveTodo(listId: listId, todoId: todoId, to: open[from + step].id)
     }
 
     func clearCompleted(listId: String) async {
@@ -1774,8 +1873,14 @@ final class AppStore {
     // MARK: - Realtime
 
     private func connectSocket() async {
-        guard let token = TokenStore.shared.accessToken else { return }
-        await SocketClient.shared.connect(token: token) { [weak self] event in
+        // Only the *presence* of a session is checked here. The token itself is
+        // fetched per connection attempt, because the one readable now has an
+        // hour to live and the socket may still be reconnecting tomorrow.
+        guard TokenStore.shared.hasSession else { return }
+        let api = api
+        await SocketClient.shared.connect(tokenProvider: { rejected in
+            await api.freshAccessToken(rejecting: rejected)
+        }) { [weak self] event in
             // The socket delivers on its own actor; hop to the main actor before
             // touching any observable state.
             Task { @MainActor [weak self] in
@@ -1793,14 +1898,10 @@ final class AppStore {
         case .connectionChanged(let connected):
             isSocketConnected = connected
 
-        case .authRejected:
-            Task {
-                // The socket rejected our token; a REST call will refresh it and
-                // we reconnect with the new one.
-                if let token = TokenStore.shared.accessToken {
-                    await SocketClient.shared.reconnect(token: token)
-                }
-            }
+        case .resumed:
+            // The socket was down for an unknown stretch and the server did not
+            // queue what it broadcast meanwhile.
+            Task { await catchUp() }
 
         case .notification(let payload):
             handleIncomingNotification(payload)
@@ -1953,6 +2054,44 @@ final class AppStore {
         }
     }
 
+    /// A remote push that arrived while the app is open.
+    ///
+    /// The push and the socket describe the same changes by independent
+    /// routes, which makes each the other's fallback: a phone whose socket
+    /// cannot connect still gets APNs. The payload carries ids, never the
+    /// changed rows, so this picks the narrowest fetch that covers it.
+    ///
+    /// Returns whether the banner is still worth showing. With the socket up,
+    /// the same event has already been mirrored as a local banner (see
+    /// `handleIncomingNotification`), so the push's own would be a duplicate.
+    /// Alarms are exempt: the user set them deliberately, and one arriving
+    /// silently because the app was open is a missed alarm.
+    private func handleForegroundPush(_ payload: [String: String]) -> Bool {
+        guard phase == .signedIn else { return true }
+
+        let listId = payload["listId"].flatMap { $0.isEmpty || $0 == "null" ? nil : $0 }
+        let isAlarm = payload["alarmId"].map { !$0.isEmpty } ?? false
+
+        Task {
+            if isAlarm {
+                await refreshAlarms()
+            } else if let listId, list(id: listId) != nil {
+                // The common case: something inside one known list moved.
+                await refreshList(id: listId)
+            } else {
+                // A list this phone has never seen is an invitation, and a push
+                // with no list at all is a type this build may not know. A full
+                // read is never wrong for either.
+                await refreshLists()
+                await refreshPartners()
+            }
+            // Every push also lands in the activity feed.
+            await refreshNotifications()
+        }
+
+        return isAlarm || !isSocketConnected
+    }
+
     private func handlePartnerLocationTrigger(listId: String, rawEvent: String) async {
         await refreshList(id: listId)
         guard NotificationSettingsStore.shared.locationReminders,
@@ -2018,6 +2157,25 @@ final class AppStore {
 
     private func reconcileScheduledReminders(with lists: [TodoList]) async {
         for list in lists { await syncReminders(for: list) }
+
+        // `syncReminders` can only reach lists and items that still exist. One
+        // deleted elsewhere — by the partner, or on another device — is absent
+        // from `lists` by definition, so its reminder was never cancelled and
+        // went on firing for something that was gone. Whatever is pending under
+        // a deadline id this set of lists does not account for is an orphan.
+        var known = Set<String>()
+        for list in lists {
+            known.insert(NotificationService.deadlineID(listId: list.id))
+            for todo in list.todos {
+                known.insert(NotificationService.todoDeadlineID(listId: list.id, todoId: todo.id))
+            }
+        }
+        let orphans = await notifications.pendingIdentifiers().filter { id in
+            (id.hasPrefix(NotificationService.deadlinePrefix)
+                || id.hasPrefix(NotificationService.todoDeadlinePrefix))
+                && !known.contains(id)
+        }
+        notifications.cancel(ids: Array(orphans))
     }
 
     private func cancelReminders(for list: TodoList) {
@@ -2046,6 +2204,18 @@ final class AppStore {
     }
 
     private func reconcileAlarmNotifications() async {
+        // An alarm deleted on another device is missing from `alarms`, so
+        // scheduling only what is there never reached it and it went on
+        // ringing here. Anything pending under an alarm id the server no longer
+        // has goes first. Every alarm still present counts, not only upcoming
+        // ones: a repeating alarm's stored date can be in the past while its
+        // calendar trigger is still very much live.
+        let live = Set(alarms.map { NotificationService.alarmID($0.id) })
+        let stale = await notifications.pendingIdentifiers().filter {
+            $0.hasPrefix(NotificationService.alarmPrefix) && !live.contains($0)
+        }
+        notifications.cancel(ids: Array(stale))
+
         for alarm in alarms where alarm.isUpcoming {
             await scheduleAlarmNotification(alarm)
         }

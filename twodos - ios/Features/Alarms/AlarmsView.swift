@@ -72,6 +72,7 @@ struct AlarmsView: View {
                 actionTitle: "Create an alarm",
                 action: { showingCreate = true }
             )
+            .pullable()
         } else {
             ScrollView {
                 LazyVStack(spacing: 14) {

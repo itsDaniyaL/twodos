@@ -116,6 +116,12 @@ struct TwodosApp: App {
                         // A suspended app's timer may never fire, and a deletion
                         // the user watched happen must not quietly come back.
                         Task { await store.commitPendingDeletion() }
+                        // Live events are a foreground concern; pushes cover
+                        // the background. Not on `.inactive`, which is only a
+                        // notification banner or the app switcher passing over.
+                        if phase == .background {
+                            Task { await store.handleBackground() }
+                        }
                     }
                 }
         }

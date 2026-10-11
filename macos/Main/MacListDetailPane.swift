@@ -112,7 +112,13 @@ struct MacListDetailPane: View {
             MacTaskEditSheet(listId: live.id, todo: todo, initialFocus: editorFocus)
         }
         .sheet(item: $placeTarget) { MacPlacePickerSheet(target: $0) }
-        .task(id: live.id) { await store.refreshChallenge(listId: live.id) }
+        // The list is read on the way in too, as on iOS: its rows otherwise
+        // come from whatever the last full load cached.
+        .task(id: live.id) {
+            async let items: Void = store.refreshList(id: live.id)
+            async let challenge: Void = store.refreshChallenge(listId: live.id)
+            _ = await (items, challenge)
+        }
         .onChange(of: live.id) { _, _ in
             onlyMine = false
             draftAttachments = []

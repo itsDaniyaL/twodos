@@ -813,11 +813,19 @@ extension LocationService: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
+            let previous = self.authorization
             self.authorization = status
             self.logger.info("Authorization is now \(status.rawValue).")
             self.resumeAuthorizationWaiters()
             if status == .denied || status == .restricted {
                 await self.removeAllGeofences()
+            } else if status != previous, self.hasAnyPermission {
+                // A grant changes no list, and lists changing is the only other
+                // thing that re-runs the sync — so a place pinned before
+                // location was allowed stayed unwatched for the rest of the
+                // session. The upgrade to Always matters as much: it is what
+                // lets a fence wake the app at all.
+                self.onNeedsResync?()
             }
         }
     }
